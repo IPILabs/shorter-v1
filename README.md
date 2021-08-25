@@ -12,3 +12,7 @@ Shorter Finance is a truly 100% decentralized infrastructure from IPI Labs.
 ### Position
 
 ### Trading Hub
+
+### Auction
+
+## Test

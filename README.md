@@ -1,6 +1,6 @@
 # Shorter Finance
 
-Shorter Finance is a truly 100% decentralized infrastructure from IPI Labs.
+Shorter Finance is a truly 100% decentralized infrastructure from Coinbase.
 
 
 ## Shorter’s Core Contracts

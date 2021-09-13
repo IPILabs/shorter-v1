@@ -17,7 +17,7 @@ contract PoolStorage is TitanCoreStorage {
 
     address internal wrapRouter; 
     bool internal _initialized;
-    /// @notice Allowed leverage constant array
+    
     uint256[] public leverageAllowedList;
 
     mapping(address => uint256[]) public createPoolIds;

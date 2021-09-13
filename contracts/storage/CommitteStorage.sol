@@ -61,7 +61,7 @@ contract CommitteStorage is TitanCoreStorage {
 
     uint256[] public proposalIds;
 
-    /// @notice Active days of voting on a proposal
+    /// @notice Active days for voting
     uint256 public maxVotingDays;
     /// @notice Number of deposit required in order for a user to become a ruler, 1e9/1e12
     uint256 public rulerThreshold;

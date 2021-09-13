@@ -57,7 +57,7 @@ contract PoolRewardModelStorage is TitanCoreStorage {
 
     mapping(uint256 => uint256) internal totalTradingFees;
 
-    /// @notice Records of basePoolInfo indexed by hash including whole meters
+    /// @notice Records of poolInfo indexed by id
     mapping(uint256 => poolInfo) public poolInfoMap;
 
     mapping(uint256 => mapping(address => rewardDebtInfo)) public rewardDebtInfoMap;

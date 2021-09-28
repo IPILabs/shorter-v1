@@ -1,0 +1,6 @@
+--reporter mochawesome
+--timeout 300000
+--slow 1000
+--bail
+--recursive
+--reporter-options overwrite=true,reportDir=doc,inline=true,cdn=true,json=false,reportTitle=node-gateway,reportFilename=dapp

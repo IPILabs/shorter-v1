@@ -22,4 +22,4 @@ yarn.lock
 .scencache
 .solcache
 .solcachecov
-test/UseCase/
+test/*.js

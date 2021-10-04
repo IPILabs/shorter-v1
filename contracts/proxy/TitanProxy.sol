@@ -30,5 +30,9 @@ contract TitanProxy is Affinity, ChainSchema, Pausable, UpgradeabilityProxy {
         _unpause();
     }
 
+    function setSecondsPerBlock(uint256 newSecondsPerBlock) public isManager {
+        _secondsPerBlock = newSecondsPerBlock;
+    }
+
     receive() external payable {}
 }

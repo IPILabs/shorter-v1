@@ -74,7 +74,7 @@ contract CommitteeImplV1 is Rescuable, ChainSchema, Pausable, CommitteStorage, I
         shorterBone.revenue(AllyLibrary.COMMITTEE, address(ipistrToken), msg.sender, proposalFee, IShorterBone.IncomeType.PROPOSAL_FEE);
         AllyLibrary.getPoolGuardian(shorterBone).addPool(_stakedTokenAddr, stableToken, msg.sender, _leverage, _durationDays, proposalCount);
 
-        proposalGallery[proposalCount] = Proposal({id: proposalCount, proposer: msg.sender, catagory: 1, startBlock: block.number.to64(), endBlock: block.number.add(blocksPerDay().mul(maxVotingDays)).to64(), forShares: 0, againstShares: 0, status: ProposalStatus.Active, displayable: true});
+        proposalGallery[proposalCount] = Proposal({id: uint32(proposalCount), proposer: msg.sender, catagory: 1, startBlock: block.number.to64(), endBlock: block.number.add(blocksPerDay().mul(maxVotingDays)).to64(), forShares: 0, againstShares: 0, status: ProposalStatus.Active, displayable: true});
         poolMetersMap[proposalCount] = PoolMeters({tokenContract: _stakedTokenAddr, leverage: _leverage.to32(), durationDays: _durationDays.to32()});
 
         emit PoolProposalCreated(proposalCount, msg.sender);
@@ -94,8 +94,9 @@ contract CommitteeImplV1 is Rescuable, ChainSchema, Pausable, CommitteStorage, I
         require(targets.length <= 10, "Committee: Too many actions");
         proposalCount = proposalCount.add(block.timestamp.add(1).sub(block.timestamp.div(30).mul(30)));
         require(proposalGallery[proposalCount].startBlock == 0, "Committee: Existing proposal found");
+        proposalIds.push(proposalCount);
         shorterBone.revenue(AllyLibrary.COMMITTEE, address(ipistrToken), msg.sender, proposalFee, IShorterBone.IncomeType.PROPOSAL_FEE);
-        proposalGallery[proposalCount] = Proposal({id: proposalCount, proposer: msg.sender, catagory: 2, startBlock: block.number.to64(), endBlock: block.number.add(blocksPerDay().mul(maxVotingDays)).to64(), forShares: 0, againstShares: 0, status: ProposalStatus.Active, displayable: true});
+        proposalGallery[proposalCount] = Proposal({id: uint32(proposalCount), proposer: msg.sender, catagory: 2, startBlock: block.number.to64(), endBlock: block.number.add(blocksPerDay().mul(maxVotingDays)).to64(), forShares: 0, againstShares: 0, status: ProposalStatus.Active, displayable: true});
         communityProposalGallery[proposalCount] = CommunityProposal({targets: targets, values: values, signatures: signatures, calldatas: calldatas});
 
         emit CommunityProposalCreated(proposalCount, msg.sender, description, title);
@@ -163,7 +164,7 @@ contract CommitteeImplV1 is Rescuable, ChainSchema, Pausable, CommitteStorage, I
         uint256[] memory failedProposals = new uint256[](proposalIds.length);
         for (uint256 i = 1; i < proposalIds.length; i++) {
             if (proposalGallery[proposalIds[i]].status == ProposalStatus.Active && uint256(proposalGallery[proposalIds[i]].endBlock) < block.number) {
-                failedProposals[failedProposalIndex++] = i;
+                failedProposals[failedProposalIndex++] = proposalIds[i];
             }
         }
 

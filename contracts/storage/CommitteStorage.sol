@@ -21,7 +21,7 @@ contract CommitteStorage is TitanCoreStorage {
     }
 
     struct Proposal {
-        uint256 id; // Unique id for looking up a proposal
+        uint32 id; // Unique id for looking up a proposal
         address proposer; // Creator of the proposal
         uint32 catagory; // 1 = pool 2 = community
         uint64 startBlock; // The block voting starts from

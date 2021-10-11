@@ -130,8 +130,6 @@ contract PoolGuardianImplV1 is Rescuable, ChainSchema, Pausable, TheiaStorage, I
             PoolInfo storage poolInfo = poolInfoMap[poolIds[i]];
             if ((stakedToken == address(0) || poolInfo.stakedToken == stakedToken) && poolInfo.stateFlag == status) {
                 poolContainer[resPoolCount++] = poolIds[i];
-            } else if (poolInfo.stakedToken == stakedToken && (poolInfo.stateFlag == PoolStatus.GENESIS || poolInfo.stateFlag == status)) {
-                poolContainer[resPoolCount++] = poolIds[i];
             }
         }
 

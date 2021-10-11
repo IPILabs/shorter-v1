@@ -47,7 +47,6 @@ contract StrPoolTraderImplV1 is Affinity, Pausable, StrPoolStorage, ERC20 {
 
         if (positionInfo.trader == address(0)) {
             positionInfo.trader = trader;
-            positionInfo.lastestFeeBlock = block.number.to64();
             positionInfo.totalSize = amountIn;
             positionInfo.unsettledCash = unsettledCash;
         } else {

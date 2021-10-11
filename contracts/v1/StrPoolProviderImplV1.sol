@@ -15,7 +15,7 @@ contract StrPoolProviderImplV1 is Affinity, Pausable, StrPoolStorage, ERC20 {
         _;
     }
 
-    function deposit(uint256 amount) external whenNotPaused onlyEOA {
+    function deposit(uint256 amount) external whenNotPaused {
         require(uint256(endBlock) > block.number && stateFlag == IPoolGuardian.PoolStatus.RUNNING, "StrPool: Expired pool");
         _deposit(msg.sender, amount);
         poolRewardModel.harvestByStrToken(id, msg.sender, balanceOf[msg.sender].add(amount));
@@ -24,7 +24,7 @@ contract StrPoolProviderImplV1 is Affinity, Pausable, StrPoolStorage, ERC20 {
         emit Deposit(msg.sender, id, amount);
     }
 
-    function withdraw(uint256 percent, uint256 amount) external whenNotPaused onlyEOA {
+    function withdraw(uint256 percent, uint256 amount) external whenNotPaused {
         require(ITradingHub(tradingHub).isPoolWithdrawable(id), "StrPool: Legacy positions found");
         require(stateFlag == IPoolGuardian.PoolStatus.RUNNING || stateFlag == IPoolGuardian.PoolStatus.ENDED, "StrPool: Pool is liquidating");
         (uint256 withdrawAmount, uint256 burnAmount) = getWithdrawAmount(percent, amount);

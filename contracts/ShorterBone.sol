@@ -174,9 +174,14 @@ contract ShorterBone is Affinity, IShorterBone {
         _addTokenWhiteList(token, swapRouter, multiplier);
     }
 
-    function batchAddTokenWhiteList(address[] calldata tokenAddrs, address[] calldata _swapRouters) external isManager {
+    function batchAddTokenWhiteList(
+        address _swapRouter,
+        address[] calldata tokenAddrs,
+        uint256[] calldata _multipliers
+    ) external isManager {
+        require(tokenAddrs.length == _multipliers.length, "ShorterBone: Invaild params");
         for (uint256 i = 0; i < tokenAddrs.length; i++) {
-            _addTokenWhiteList(tokenAddrs[i], _swapRouters[i], 350);
+            _addTokenWhiteList(tokenAddrs[i], _swapRouter, _multipliers[i]);
         }
     }
 

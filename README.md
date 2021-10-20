@@ -14,26 +14,33 @@ Some of Shorter’s prominent features:
 - Negative trading slippage reduction
 - Autonomous on-chain debt collection and liquidation
 
+Refer to [docs.shorter.finance](https://docs.shorter.finance) to learn more exhaustive details.
+
 ## Shorter’s Core Contracts
 
-### PoolGuardian
+- PoolGuardian (`Provider`)
+- Committee
+- Pool
+- Trading Hub (`Trader`)
+- Auction Hall (`Ruler`)
+  - Tanto
+  - Katana
+- Vault
+  - Naginata
+- Farming
+  - Pool Rewards
+  - Governance Rewards
+  - Trading Rewards
+  - Voting Rewards
 
-### Pool
+## Build
 
-### Trading Hub
-
-### Auction Hall
-
-### Vault
-
-### Farming
-
-## Develop
+```bash
+yarn build
+```
 
 ## Test
 
-```
+```bash
 yarn test
 ```
-
-## Build

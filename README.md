@@ -33,14 +33,32 @@ Refer to [docs.shorter.finance](https://docs.shorter.finance) to learn more exha
   - Trading Rewards
   - Voting Rewards
 
+### Pre Requisites
+
+Before running any command, make sure to install dependencies:
+
+```bash
+$ yarn
+```
+
 ## Build
 
 ```bash
-yarn build
+$ yarn build
 ```
 
 ## Test
 
+Run all the tests:
+
 ```bash
-yarn test
+$ yarn test
+```
+
+### Clean
+
+Delete the smart contract artifacts, the coverage reports and the Hardhat cache:
+
+```bash
+$ yarn clean
 ```

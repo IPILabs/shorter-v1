@@ -1,13 +1,13 @@
 {
   "name": "shorter-finance",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "directories": {
     "doc": "docs",
     "test": "test"
   },
   "author": "IPI Labs",
   "license": "GPL-2.0-or-later",
-  "description": "Shorter is a DeFi suit for the frictionless experience for shorting tokens.",
+  "description": "Shorter is a 100% on-chain infrastructure comprising venues for token lending, token shorting and foolproof liquidation from IPI Labs",
   "main": "hardhat.config.js",
   "scripts": {
     "build": "hardhat compile",

@@ -10,7 +10,7 @@ import "../../interfaces/governance/ICommittee.sol";
 contract PoolRewardModelStorage is TitanCoreStorage {
     using EnumerableSet for EnumerableSet.UintSet;
 
-    struct poolInfo {
+    struct PoolInfo {
         uint64 allocPoint;
         uint64 multiplier;
         uint64 lastRewardBlock;
@@ -18,7 +18,7 @@ contract PoolRewardModelStorage is TitanCoreStorage {
         uint256 accStablePerShare;
     }
 
-    struct rewardDebtInfo {
+    struct RewardDebtInfo {
         uint256 poolIpiStrRewardDebt;
         uint256 poolStableRewardDebt;
         uint256 voterIpiStrRewardDebt;
@@ -58,7 +58,7 @@ contract PoolRewardModelStorage is TitanCoreStorage {
     mapping(uint256 => uint256) internal totalTradingFees;
 
     /// @notice Records of poolInfo indexed by id
-    mapping(uint256 => poolInfo) public poolInfoMap;
+    mapping(uint256 => PoolInfo) public poolInfoMap;
 
-    mapping(uint256 => mapping(address => rewardDebtInfo)) public rewardDebtInfoMap;
+    mapping(uint256 => mapping(address => RewardDebtInfo)) public rewardDebtInfoMap;
 }

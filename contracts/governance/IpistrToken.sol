@@ -9,6 +9,5 @@ contract IpistrToken is TitanProxy, ERC20, TokenStorage {
     constructor(
         address _SAVIOR,
         address _implementation,
-        address _shorterBone
     ) public TitanProxy(_SAVIOR, _implementation) {}
 }

@@ -27,6 +27,4 @@ contract PoolStorage is TitanCoreStorage {
     mapping(uint256 => PoolInfo) public poolInfoMap;
 
     mapping(bytes4 => address) public strPoolImplementations;
-
-    mapping(address => address) public wrapStakedTokens;
 }

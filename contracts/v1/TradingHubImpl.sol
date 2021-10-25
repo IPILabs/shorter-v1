@@ -13,7 +13,7 @@ import "../storage/AresStorage.sol";
 import "../util/BoringMath.sol";
 
 /// @notice Hub for dealing with orders, positions and traders
-contract TradingHubImplV1 is Rescuable, ChainSchema, Pausable, AresStorage, ITradingHub {
+contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradingHub {
     using BoringMath for uint256;
     using Path for bytes;
 

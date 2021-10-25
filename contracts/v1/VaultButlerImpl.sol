@@ -16,7 +16,7 @@ import "../util/BoringMath.sol";
 import "./Rescuable.sol";
 
 /// @notice Butler serves the vaults
-contract VaultButlerImplV1 is Rescuable, ChainSchema, Pausable, GaiaStorage, IVaultButler {
+contract VaultButlerImpl is Rescuable, ChainSchema, Pausable, GaiaStorage, IVaultButler {
     using BoringMath for uint256;
 
     modifier onlyRuler(address ruler) {

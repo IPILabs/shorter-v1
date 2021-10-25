@@ -10,7 +10,7 @@ import "../../storage/model/TradingRewardModelStorage.sol";
 import "../../util/BoringMath.sol";
 import "../Rescuable.sol";
 
-contract TradingRewardModelImplV1 is Rescuable, ChainSchema, Pausable, TradingRewardModelStorage, ITradingRewardModel {
+contract TradingRewardModelImpl is Rescuable, ChainSchema, Pausable, TradingRewardModelStorage, ITradingRewardModel {
     using BoringMath for uint256;
 
     constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}

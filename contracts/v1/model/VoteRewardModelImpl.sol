@@ -12,7 +12,7 @@ import "../../storage/model/VoteRewardModelStorage.sol";
 import "../../util/BoringMath.sol";
 import "../Rescuable.sol";
 
-contract VoteRewardModelImplV1 is Rescuable, ChainSchema, Pausable, VoteRewardModelStorage, IVoteRewardModel {
+contract VoteRewardModelImpl is Rescuable, ChainSchema, Pausable, VoteRewardModelStorage, IVoteRewardModel {
     using BoringMath for uint256;
 
     constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}

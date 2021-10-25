@@ -13,7 +13,7 @@ import "../../storage/model/PoolRewardModelStorage.sol";
 import "../../util/BoringMath.sol";
 import "../Rescuable.sol";
 
-contract PoolRewardModelImplV1 is Rescuable, ChainSchema, Pausable, PoolRewardModelStorage, IPoolRewardModel {
+contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardModelStorage, IPoolRewardModel {
     using BoringMath for uint256;
 
     constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}

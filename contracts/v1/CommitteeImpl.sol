@@ -10,7 +10,7 @@ import "../storage/CommitteStorage.sol";
 import "../util/BoringMath.sol";
 import "./Rescuable.sol";
 
-contract CommitteeImplV1 is Rescuable, ChainSchema, Pausable, CommitteStorage, ICommittee {
+contract CommitteeImpl is Rescuable, ChainSchema, Pausable, CommitteStorage, ICommittee {
     using BoringMath for uint256;
     using EnumerableSet for EnumerableSet.UintSet;
 

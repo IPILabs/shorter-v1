@@ -9,7 +9,7 @@ import "../tokens/ERC20.sol";
 import "./Rescuable.sol";
 
 /// @notice Governance token of Shorter
-contract IpistrTokenImplV1 is Rescuable, ChainSchema, Pausable, ERC20, PrometheusStorage, IIpistrToken {
+contract IpistrTokenImpl is Rescuable, ChainSchema, Pausable, ERC20, PrometheusStorage, IIpistrToken {
     using BoringMath for uint256;
 
     constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}

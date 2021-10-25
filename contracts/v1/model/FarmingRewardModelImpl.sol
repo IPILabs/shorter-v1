@@ -11,7 +11,7 @@ import "../../storage/model/FarmingRewardModelStorage.sol";
 import "../../util/BoringMath.sol";
 import "../Rescuable.sol";
 
-contract FarmingRewardModelImplV1 is Rescuable, ChainSchema, Pausable, FarmingRewardModelStorage, IFarmingRewardModel {
+contract FarmingRewardModelImpl is Rescuable, ChainSchema, Pausable, FarmingRewardModelStorage, IFarmingRewardModel {
     using BoringMath for uint256;
     using SafeToken for ISRC20;
 

@@ -7,7 +7,7 @@ import "../criteria/Affinity.sol";
 import "../storage/StrPoolStorage.sol";
 import "../tokens/ERC20.sol";
 
-contract StrPoolProviderImplV1 is Affinity, Pausable, StrPoolStorage, ERC20 {
+contract StrPoolProviderImpl is Affinity, Pausable, StrPoolStorage, ERC20 {
     constructor(address _SAVIOR) public Affinity(_SAVIOR) {}
 
     modifier onlyPoolGuardian() {

@@ -12,7 +12,7 @@ import "../../storage/model/GovRewardModelStorage.sol";
 import "../../util/BoringMath.sol";
 import "../Rescuable.sol";
 
-contract GovRewardModelImplV1 is Rescuable, ChainSchema, Pausable, GovRewardModelStorage, IGovRewardModel {
+contract GovRewardModelImpl is Rescuable, ChainSchema, Pausable, GovRewardModelStorage, IGovRewardModel {
     using BoringMath for uint256;
 
     constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}

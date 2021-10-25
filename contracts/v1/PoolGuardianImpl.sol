@@ -10,7 +10,7 @@ import "../storage/TheiaStorage.sol";
 import "./Rescuable.sol";
 import "../util/BoringMath.sol";
 
-contract PoolGuardianImplV1 is Rescuable, ChainSchema, Pausable, TheiaStorage, IPoolGuardian {
+contract PoolGuardianImpl is Rescuable, ChainSchema, Pausable, TheiaStorage, IPoolGuardian {
     using BoringMath for uint256;
 
     modifier onlyCommittee() {

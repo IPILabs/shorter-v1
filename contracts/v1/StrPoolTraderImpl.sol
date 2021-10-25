@@ -8,7 +8,7 @@ import "../criteria/Affinity.sol";
 import "../storage/StrPoolStorage.sol";
 import "../tokens/ERC20.sol";
 
-contract StrPoolTraderImplV1 is Affinity, Pausable, StrPoolStorage, ERC20 {
+contract StrPoolTraderImpl is Affinity, Pausable, StrPoolStorage, ERC20 {
     modifier onlyTradingHub() {
         require(msg.sender == shorterBone.getAddress(AllyLibrary.TRADING_HUB), "StrPool: Caller is not TradingHub");
         _;

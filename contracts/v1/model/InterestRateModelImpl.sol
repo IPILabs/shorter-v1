@@ -11,7 +11,7 @@ import "../../storage/model/InterestRateModelStorage.sol";
 import "../../util/BoringMath.sol";
 import "../Rescuable.sol";
 
-contract InterestRateModelImplV1 is Rescuable, ChainSchema, Pausable, InterestRateModelStorage, IInterestRateModel {
+contract InterestRateModelImpl is Rescuable, ChainSchema, Pausable, InterestRateModelStorage, IInterestRateModel {
     using BoringMath for uint256;
 
     constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}

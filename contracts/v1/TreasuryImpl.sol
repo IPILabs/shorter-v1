@@ -9,7 +9,7 @@ import "../storage/TreasuryStorage.sol";
 import "./Rescuable.sol";
 import "../util/BoringMath.sol";
 
-contract TreasuryImplV1 is Rescuable, ChainSchema, Pausable, TreasuryStorage {
+contract TreasuryImpl is Rescuable, ChainSchema, Pausable, TreasuryStorage {
     using EnumerableSet for EnumerableSet.AddressSet;
     using BoringMath for uint256;
 

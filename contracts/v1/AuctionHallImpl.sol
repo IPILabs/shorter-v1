@@ -16,7 +16,7 @@ import "../storage/ThemisStorage.sol";
 import "../util/BoringMath.sol";
 import "./Rescuable.sol";
 
-contract AuctionHallImplV1 is Rescuable, ChainSchema, Pausable, ThemisStorage, IAuctionHall {
+contract AuctionHallImpl is Rescuable, ChainSchema, Pausable, ThemisStorage, IAuctionHall {
     using BoringMath for uint256;
     using SafeToken for ISRC20;
     using Path for bytes;

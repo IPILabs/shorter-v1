@@ -48,6 +48,8 @@ contract AuctionStorage is TitanCoreStorage {
         uint256 priorityFee;
     }
 
+    uint256 public phase1MaxBlock;
+    uint256 public auctionMaxBlock;
     bool internal _initialized;
     address public dexCenter;
     address public ipistrToken;

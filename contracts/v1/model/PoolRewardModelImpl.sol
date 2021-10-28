@@ -153,7 +153,7 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
     }
 
     function pendingPoolReward(address user, uint256 poolId) public view returns (uint256 rewards) {
-        poolInfo storage pool = poolInfoMap[poolId];
+        PoolInfo storage pool = poolInfoMap[poolId];
         address strPool = getStrPool(poolId);
 
         uint256 _poolStakedAmount = ISRC20(strPool).totalSupply();
@@ -168,7 +168,7 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
         uint256 accStablePerShare = pool.accStablePerShare.add(stablePoolReward.mul(IPISTR_DECIMAL_SCALER).div(_poolStakedAmount));
 
         uint256 _userStakedAmount = ISRC20(strPool).balanceOf(user);
-        rewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
+        RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
 
         uint256 pendingTradingRewards = _userStakedAmount.mul(accStablePerShare).div(IPISTR_DECIMAL_SCALER).sub(rewardDebt.poolStableRewardDebt);
         (uint256 currentPrice, uint256 tokenDecimals) = priceOracle.getLatestMixinPrice(ipistrToken);
@@ -197,7 +197,7 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
         uint256 ipistrPoolReward = (_totalPendingReward(poolId, endBlock).div(IPISTR_DECIMAL_SCALER)).add(totalIpiStrAmount[poolId]);
         uint256 stablePoolReward = IStrPool(strPool).totalTradingFee().mul(10**(uint256(18).sub(stableTokenDecimals)));
 
-        rewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
+        RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
         rewards0 = (ipistrPoolReward.mul(3).div(100)).sub(rewardDebt.creatorIpiStrRewardDebt);
         rewards1 = (stablePoolReward.mul(3).div(100)).sub(rewardDebt.creatorStableRewardDebt);
 
@@ -227,7 +227,7 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
         uint256 ipistrPoolReward = (_totalPendingReward(poolId, endBlock).div(IPISTR_DECIMAL_SCALER)).add(totalIpiStrAmount[poolId]);
         uint256 stablePoolReward = IStrPool(strPool).totalTradingFee().mul(10**(uint256(18).sub(stableTokenDecimals)));
 
-        rewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
+        RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
         rewards0 = (ipistrPoolReward.mul(voteShare).div(totalShare).div(200)).sub(rewardDebt.voterIpiStrRewardDebt);
         rewards1 = (stablePoolReward.mul(voteShare).div(totalShare).div(200)).sub(rewardDebt.voterStableRewardDebt);
 
@@ -237,7 +237,7 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
     }
 
     function _totalPendingReward(uint256 poolId, uint256 endBlock) internal view returns (uint256 _rewards) {
-        poolInfo storage pool = poolInfoMap[poolId];
+        PoolInfo storage pool = poolInfoMap[poolId];
         uint256 blockSpan = block.number.sub(uint256(pool.lastRewardBlock));
         if (uint256(pool.lastRewardBlock) >= endBlock || pool.lastRewardBlock == 0) {
             return 0;
@@ -254,7 +254,7 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
 
     function updatePool(uint256 poolId) internal {
         address strPool = getStrPool(poolId);
-        poolInfo storage pool = poolInfoMap[poolId];
+        PoolInfo storage pool = poolInfoMap[poolId];
 
         uint256 poolStakedAmount = ISRC20(strPool).totalSupply();
         if (block.number <= uint256(pool.lastRewardBlock) || poolStakedAmount == 0) {
@@ -280,7 +280,7 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
         uint256 rewards0,
         uint256 rewards1
     ) internal {
-        rewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
+        RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
         rewardDebt.creatorIpiStrRewardDebt = rewardDebt.creatorIpiStrRewardDebt.add(rewards0);
         rewardDebt.creatorStableRewardDebt = rewardDebt.creatorStableRewardDebt.add(rewards1);
     }
@@ -291,7 +291,7 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
         uint256 rewards0,
         uint256 rewards1
     ) internal {
-        rewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
+        RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
         rewardDebt.voterIpiStrRewardDebt = rewardDebt.voterIpiStrRewardDebt.add(rewards0);
         rewardDebt.voterStableRewardDebt = rewardDebt.voterStableRewardDebt.add(rewards1);
     }
@@ -301,8 +301,8 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
         uint256 poolId,
         uint256 amount
     ) internal {
-        poolInfo storage pool = poolInfoMap[poolId];
-        rewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
+        PoolInfo storage pool = poolInfoMap[poolId];
+        RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
         rewardDebt.poolIpiStrRewardDebt = amount.mul(pool.accIPISTRPerShare).div(IPISTR_DECIMAL_SCALER);
         rewardDebt.poolStableRewardDebt = amount.mul(pool.accStablePerShare).div(IPISTR_DECIMAL_SCALER);
     }

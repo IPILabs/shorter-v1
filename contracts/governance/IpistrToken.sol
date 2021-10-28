@@ -8,6 +8,6 @@ import "../tokens/ERC20.sol";
 contract IpistrToken is TitanProxy, ERC20, TokenStorage {
     constructor(
         address _SAVIOR,
-        address _implementation,
+        address _implementation
     ) public TitanProxy(_SAVIOR, _implementation) {}
 }

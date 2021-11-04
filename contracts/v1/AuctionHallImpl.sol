@@ -21,9 +21,6 @@ contract AuctionHallImpl is Rescuable, ChainSchema, Pausable, ThemisStorage, IAu
     using SafeToken for ISRC20;
     using Path for bytes;
 
-    uint256 public constant PHASE1_MAX_BLOCK = 100;
-    uint256 public constant AUCTION_MAX_BLOCK = 120;
-
     modifier onlyRuler(address ruler) {
         require(committee.isRuler(ruler), "AuctionHall: Caller is not a ruler");
         _;
@@ -39,7 +36,7 @@ contract AuctionHallImpl is Rescuable, ChainSchema, Pausable, ThemisStorage, IAu
         PositionInfo memory positionInfo = getPositionInfo(position);
         require(bidSize > 0 && bidSize <= positionInfo.totalSize, "AuctionHall: Invalid bidSize");
         require(positionInfo.positionState == ITradingHub.PositionState.CLOSING, "AuctionHall: Not a closing position");
-        require(block.number.sub(positionInfo.closingBlock) <= PHASE1_MAX_BLOCK, "AuctionHall: Tanto is over");
+        require(block.number.sub(positionInfo.closingBlock) <= phase1MaxBlock, "AuctionHall: Tanto is over");
 
         Phase1Info storage phase1Info = phase1Infos[position];
         phase1Info.bidSize = phase1Info.bidSize.add(bidSize);
@@ -62,7 +59,7 @@ contract AuctionHallImpl is Rescuable, ChainSchema, Pausable, ThemisStorage, IAu
         require(path.getTokenIn() == address(positionInfo.stableToken), "AuctionHall: Invalid tokenIn");
         require(path.getTokenOut() == address(positionInfo.stakedToken), "AuctionHall: Invalid tokenOut");
         require(positionInfo.positionState == ITradingHub.PositionState.CLOSING, "AuctionHall: Not a closing position");
-        require(block.number.sub(positionInfo.closingBlock) > PHASE1_MAX_BLOCK && block.number.sub(positionInfo.closingBlock) <= AUCTION_MAX_BLOCK, "AuctionHall: Katana is over");
+        require(block.number.sub(positionInfo.closingBlock) > phase1MaxBlock && block.number.sub(positionInfo.closingBlock) <= auctionMaxBlock, "AuctionHall: Katana is over");
         Phase1Info storage phase1Info = phase1Infos[position];
         require(!phase1Info.flag, "AuctionHall: Position was closed");
 
@@ -116,7 +113,7 @@ contract AuctionHallImpl is Rescuable, ChainSchema, Pausable, ThemisStorage, IAu
         for (uint256 i = 0; i < legacyPositions.length; i++) {
             (, , uint256 closingBlock, ITradingHub.PositionState positionState) = tradingHub.getPositionInfo(legacyPositions[i]);
             require(positionState == ITradingHub.PositionState.CLOSING, "AuctionHall: Not a closing position");
-            if ((block.number.sub(closingBlock) > AUCTION_MAX_BLOCK && !phase1Infos[legacyPositions[i]].flag && !phase2Infos[legacyPositions[i]].flag) || estimatePositionState(legacyPositions[i]) == ITradingHub.PositionState.OVERDRAWN) {
+            if ((block.number.sub(closingBlock) > auctionMaxBlock && !phase1Infos[legacyPositions[i]].flag && !phase2Infos[legacyPositions[i]].flag) || estimatePositionState(legacyPositions[i]) == ITradingHub.PositionState.OVERDRAWN) {
                 tradingHub.updatePositionState(legacyPositions[i], ITradingHub.PositionState.OVERDRAWN);
             }
         }
@@ -143,9 +140,9 @@ contract AuctionHallImpl is Rescuable, ChainSchema, Pausable, ThemisStorage, IAu
         for (uint256 i = 0; i < posSize; i++) {
             (, , uint256 closingBlock, ) = tradingHub.getPositionInfo(closingPositions[i]);
 
-            if (block.number.sub(closingBlock) > PHASE1_MAX_BLOCK && (phase1Infos[closingPositions[i]].flag)) {
+            if (block.number.sub(closingBlock) > phase1MaxBlock && (phase1Infos[closingPositions[i]].flag)) {
                 closedPosContainer[resClosedPosCount++] = closingPositions[i];
-            } else if ((block.number.sub(closingBlock) > AUCTION_MAX_BLOCK && !phase1Infos[closingPositions[i]].flag && !phase2Infos[closingPositions[i]].flag)) {
+            } else if ((block.number.sub(closingBlock) > auctionMaxBlock && !phase1Infos[closingPositions[i]].flag && !phase2Infos[closingPositions[i]].flag)) {
                 abortedPosContainer[resAbortedPosCount++] = closingPositions[i];
             } else {
                 ITradingHub.PositionState positionState = estimatePositionState(closingPositions[i]);
@@ -223,7 +220,7 @@ contract AuctionHallImpl is Rescuable, ChainSchema, Pausable, ThemisStorage, IAu
             BidItem[] memory bidItems = allPhase1BidRecords[closedPositions[i]];
             require(_bidRanks.length == bidItems.length, "AuctionHall: Invalid bidRanks size");
             (, , uint256 closingBlock, ITradingHub.PositionState positionState) = tradingHub.getPositionInfo(closedPositions[i]);
-            if (!((block.number.sub(closingBlock) > PHASE1_MAX_BLOCK && phase1Infos[closedPositions[i]].flag) || (estimatePositionState(closedPositions[i]) == ITradingHub.PositionState.CLOSED))) {
+            if (!((block.number.sub(closingBlock) > phase1MaxBlock && phase1Infos[closedPositions[i]].flag) || (estimatePositionState(closedPositions[i]) == ITradingHub.PositionState.CLOSED))) {
                 continue;
             }
             require(positionState == ITradingHub.PositionState.CLOSING, "AuctionHall: Not a closing position");
@@ -262,7 +259,9 @@ contract AuctionHallImpl is Rescuable, ChainSchema, Pausable, ThemisStorage, IAu
         address _poolGuardian,
         address _tradingHub,
         address _priceOracle,
-        address _committee
+        address _committee,
+        uint256 _phase1MaxBlock,
+        uint256 _auctionMaxBlock
     ) external isKeeper {
         require(!_initialized, "AuctionHall: Already initialized");
         shorterBone = IShorterBone(_shorterBone);
@@ -273,6 +272,8 @@ contract AuctionHallImpl is Rescuable, ChainSchema, Pausable, ThemisStorage, IAu
         priceOracle = IPriceOracle(_priceOracle);
         committee = ICommittee(_committee);
         _initialized = true;
+        phase1MaxBlock = _phase1MaxBlock;
+        auctionMaxBlock = _auctionMaxBlock;
     }
 
     function getPositionInfo(address position) internal view returns (PositionInfo memory positionInfo) {

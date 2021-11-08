@@ -168,6 +168,9 @@ contract StrPoolTraderImpl is Affinity, Pausable, StrPoolStorage, ERC20 {
             abi.encodeWithSignature("buyCover((bool,bool,uint256,uint256,address,address,bytes))", IDexCenter.BuyCoverParams({isSwapRouterV3: isSwapRouterV3, isTetherToken: isTetherToken, amountOut: amountOut, amountInMax: amountInMax, swapRouter: swapRouter, to: to, path: path}))
         );
         amountIn = abi.decode(data, (uint256));
+        if (msg.sender == to) {
+            return amountIn;
+        }
         IWrapRouter(wrapRouter).wrap(address(stakedToken), amountOut);
         totalStakedTokenAmount = totalStakedTokenAmount.add(amountOut);
     }

@@ -1,13 +1,20 @@
 {
   "name": "shorter-finance",
   "version": "1.3.2",
+  "publishConfig": {
+    "access": "public"
+  },
   "directories": {
     "doc": "docs",
     "test": "test"
   },
   "author": "IPI Labs",
   "license": "GPL-2.0-or-later",
-  "description": "Shorter is a 100% on-chain infrastructure comprising venues for token lending, token shorting and foolproof liquidation from IPI Labs",
+  "description": "Key smart contracts of 💲horter V1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/IPILabs/shorter-v1"
+  },
   "main": "hardhat.config.js",
   "scripts": {
     "build": "hardhat compile",

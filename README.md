@@ -1,4 +1,4 @@
-# Shorter Finance
+# Shorter Finance v1
 
 Shorter Finance is a truly 100% decentralized infrastructure from IPI Labs. It comprises venues for token lending, derivatives trading and foolproof liquidation, bringing margin trading and physical delivery to the DeFi landscape with the ethos of open-source.
 
@@ -15,6 +15,8 @@ Some of Shorter’s prominent features:
 - Autonomous on-chain debt collection and liquidation
 
 Refer to [docs.shorter.finance](https://docs.shorter.finance) to learn more exhaustive details.
+
+For higher level integration, check this repo: [shorter-v1-periphery](https://github.com/IPILabs/shorter-v1-periphery).
 
 ## Shorter’s Core Contracts
 

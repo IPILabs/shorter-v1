@@ -5,15 +5,15 @@ require('hardhat-gas-reporter');
 require('@nomiclabs/hardhat-ethers');
 require('@nomiclabs/hardhat-waffle');
 require('hardhat-contract-sizer');
-require("@nomiclabs/hardhat-truffle5");
-require("uniswap-v3-deploy-plugin");
 require('dotenv').config();
 
-const {
-    PRIVATE_KEY
-} = process.env;
+const { PRIVATE_KEY } = process.env;
 
 const ACCOUNTS_PK = [`0x${PRIVATE_KEY}`];
+
+const ACCOUNTS_HD = {
+    mnemonic: 'test test test test test test test test test test test junk',
+};
 
 task('accounts', 'Prints the list of accounts', async () => {
     const accounts = await ethers.getSigners();
@@ -23,9 +23,7 @@ task('accounts', 'Prints the list of accounts', async () => {
     }
 });
 
-task('blockNumber', 'Prints the current block number', async (_, {
-    ethers
-}) => {
+task('blockNumber', 'Prints the current block number', async (_, { ethers }) => {
     await ethers.provider.getBlockNumber().then((blockNumber) => {
         console.log('Current block number: ' + blockNumber);
     });
@@ -47,7 +45,7 @@ module.exports = {
             accounts: ACCOUNTS_HD,
             gasPrice: 120 * 1000000000,
             chainId: 1,
-        }
+        },
     },
     paths: {
         deploy: 'scripts',

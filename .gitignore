@@ -8,7 +8,6 @@ exports/
 node_modules/
 .history/
 build/
-.build
 .env
 .certora*
 certora_*
@@ -22,4 +21,3 @@ yarn.lock
 .scencache
 .solcache
 .solcachecov
-test/*.js

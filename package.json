@@ -1,6 +1,6 @@
 {
   "name": "shorter-finance",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "directories": {
     "doc": "docs",
     "test": "test"
@@ -30,8 +30,6 @@
     "mochawesome": "4.1.0",
     "prettier": "^2.3.0",
     "prettier-plugin-solidity": "^1.0.0-beta.13",
-    "solidity-coverage": "0.7.2",
-    "table": "^6.7.0",
-    "web3": "^1.7.3"
+    "solidity-coverage": "0.7.2"
   }
 }

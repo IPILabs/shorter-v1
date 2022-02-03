@@ -17,8 +17,8 @@ contract FarmingRewardModelImpl is Rescuable, ChainSchema, Pausable, FarmingRewa
 
     constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}
 
-    function harvest(address user) external override returns (uint256 rewards) {
-        if (user == msg.sender) {
+    function harvestByPool(address user) external override returns (uint256 rewards) {
+        if (user != msg.sender) {
             require(msg.sender == address(farming), "FarmingReward: Caller is not Farming");
         }
 
@@ -30,6 +30,26 @@ contract FarmingRewardModelImpl is Rescuable, ChainSchema, Pausable, FarmingRewa
         if (_rewards > 0) {
             shorterBone.mintByAlly(AllyLibrary.FARMING_REWARD, user, _rewards);
         }
+
+        rewards = _unLockRewards.add(_rewards);
+        userLastRewardBlock[user] = block.number;
+    }
+
+    function harvest(address user) external override returns (uint256 rewards) {
+        if (user != msg.sender) {
+            require(msg.sender == address(farming), "FarmingReward: Caller is not Farming");
+        }
+
+        (uint256 _unLockRewards, uint256 _rewards) = pendingReward(user);
+        if (_unLockRewards > 0) {
+            ipistrToken.unlockBalance(user, _unLockRewards);
+        }
+
+        if (_rewards > 0) {
+            shorterBone.mintByAlly(AllyLibrary.FARMING_REWARD, user, _rewards);
+        }
+
+        farming.harvest(farming.getTokenId(), user);
 
         rewards = _unLockRewards.add(_rewards);
         userLastRewardBlock[user] = block.number;
@@ -88,6 +108,10 @@ contract FarmingRewardModelImpl is Rescuable, ChainSchema, Pausable, FarmingRewa
 
     function setMaxLpSupply(uint256 _maxLpSupply) external isManager {
         maxLpSupply = _maxLpSupply;
+    }
+
+    function setFarming(address newFarming) public isManager {
+        farming = IFarming(newFarming);
     }
 
     function getBaseSpeed(uint256 userStakedAmount) internal view returns (uint256 speed) {

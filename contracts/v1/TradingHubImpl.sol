@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
+pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "./Rescuable.sol";
@@ -24,13 +25,9 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
         _;
     }
 
-    function checkPath(
-        bytes memory path,
-        address tokenIn,
-        address tokenOut
-    ) internal pure {
-        require(path.getTokenIn() == tokenIn, "TradingHub: Invalid tokenIn");
-        require(path.getTokenOut() == tokenOut, "TradingHub: Invalid tokenOut");
+    modifier onlyGrabber() {
+        require(msg.sender == shorterBone.getAddress(AllyLibrary.GRAB_REWARD), "TradingHub: Caller is not Grabber");
+        _;
     }
 
     function sellShort(
@@ -85,10 +82,10 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
 
         if (isClosed) {
             _updatePositionState(position, PositionState.CLOSED);
-        } else {
+        }
+
             emit PositionDecreased(poolId, msg.sender, position, amount);
         }
-    }
 
     function getPositionInfo(address position)
         external
@@ -138,8 +135,7 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
         });
     }
 
-    function executePositions(address[] memory positions) external override {
-        require(msg.sender == shorterBone.getAddress(AllyLibrary.GRAB_REWARD), "TradingHub: Caller is not Grabber");
+    function executePositions(address[] memory positions) external override onlyGrabber {
         for (uint256 i = 0; i < positions.length; i++) {
             PositionInfo storage positionInfo = positionInfoMap[positions[i]];
             require(positionInfo.positionState == PositionState.OPEN, "TradingHub: Not a open position");
@@ -162,58 +158,46 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
         return true;
     }
 
-    function batchClosePositions(uint256 poolId) external isManager {
-        (, address strToken, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(poolId);
+    function setBatchClosePositions(ITradingHub.BatchPositionInfo[] memory batchPositionInfos) external override onlyGrabber {
+        for (uint256 i = 0; i < batchPositionInfos.length; i++) {
+            (, address strToken, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(batchPositionInfos[i].poolId);
         require(poolStatus == IPoolGuardian.PoolStatus.RUNNING, "TradingHub: Pool is not running");
-        uint256 poolPosSize = poolPositionSize[poolId];
-        address[] memory posContainer = new address[](poolPosSize);
-
-        uint256 resPosCount;
-        for (uint256 i = 0; i < poolPosSize; i++) {
-            address position = poolPositions[poolId][i];
-            PositionInfo storage positionInfo = positionInfoMap[position];
-            if (positionInfo.positionState == PositionState.OPEN) {
-                positionInfo.positionState = PositionState.CLOSING;
-                posContainer[resPosCount++] = position;
+            (, , , , , , , uint256 endBlock, , , , ) = IStrPool(strToken).getInfo();
+            require(block.number > endBlock, "TradingHub: Pool is not Liquidating");
+            for (uint256 j = 0; j < batchPositionInfos[i].positions.length; j++) {
+                PositionInfo storage positionInfo = positionInfoMap[batchPositionInfos[i].positions[j]];
+                require(positionInfo.positionState == PositionState.OPEN, "TradingHub: Position is not open");
+                _updatePositionState(batchPositionInfos[i].positions[j], PositionState.CLOSING);
             }
+            if (batchPositionInfos[i].positions.length > 0) {
+                IStrPool(strToken).batchUpdateFundingFee(batchPositionInfos[i].positions);
         }
-
-        if (resPosCount == 0) {
-            poolGuardian.setStateFlag(poolId, IPoolGuardian.PoolStatus.ENDED);
-            return;
+            if (existPositionState(batchPositionInfos[i].poolId, ITradingHub.PositionState.OPEN)) break;
+            if (existPositionState(batchPositionInfos[i].poolId, ITradingHub.PositionState.CLOSING) || existPositionState(batchPositionInfos[i].poolId, ITradingHub.PositionState.OVERDRAWN)) {
+                poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.LIQUIDATING);
+            } else {
+                poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.ENDED);
         }
-
-        address[] memory resPositions = new address[](resPosCount);
-        for (uint256 i = 0; i < resPosCount; i++) {
-            resPositions[i] = posContainer[i];
         }
-
-        IStrPool(strToken).batchUpdateFundingFee(resPositions);
-        poolGuardian.setStateFlag(poolId, IPoolGuardian.PoolStatus.LIQUIDATING);
     }
 
-    function delivery(uint256 poolId) external isManager {
-        (, address strToken, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(poolId);
+    function delivery(ITradingHub.BatchPositionInfo[] memory batchPositionInfos) external override onlyGrabber {
+        for (uint256 i = 0; i < batchPositionInfos.length; i++) {
+            (, address strToken, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(batchPositionInfos[i].poolId);
         require(poolStatus == IPoolGuardian.PoolStatus.LIQUIDATING, "TradingHub: Pool is not liquidating");
-        uint256 poolPosSize = poolPositionSize[poolId];
-
-        bool isDelivery = false;
-        for (uint256 i = 0; i < poolPosSize; i++) {
-            address position = poolPositions[poolId][i];
-            PositionInfo storage positionInfo = positionInfoMap[position];
-            if (positionInfo.positionState == PositionState.OVERDRAWN) {
-                isDelivery = true;
-                positionInfo.positionState = PositionState.CLOSED;
+            (, , , , , , , uint256 endBlock, , , , ) = IStrPool(strToken).getInfo();
+            require(block.number > endBlock.add(1000), "TradingHub: Pool is not delivery");
+            for (uint256 j = 0; j < batchPositionInfos[i].positions.length; j++) {
+                PositionInfo storage positionInfo = positionInfoMap[batchPositionInfos[i].positions[j]];
+                require(positionInfo.positionState == PositionState.OVERDRAWN, "TradingHub: Position is not overdrawn");
+                _updatePositionState(batchPositionInfos[i].positions[j], PositionState.CLOSED);
             }
+            if (batchPositionInfos[i].positions.length > 0) {
+                IStrPool(strToken).delivery(true);
         }
-
-        if (isDelivery) {
-            poolGuardian.setStateFlag(poolId, IPoolGuardian.PoolStatus.RECOVER);
-        } else {
-            poolGuardian.setStateFlag(poolId, IPoolGuardian.PoolStatus.ENDED);
+            if (existPositionState(batchPositionInfos[i].poolId, ITradingHub.PositionState.OVERDRAWN)) break;
+            poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.ENDED);
         }
-
-        IStrPool(strToken).delivery(isDelivery);
     }
 
     function updatePositionState(address position, PositionState positionState) external override {
@@ -243,6 +227,16 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
         }
 
         positionInfoMap[position].positionState = positionState;
+    }
+
+    function existPositionState(uint256 poolId, ITradingHub.PositionState positionState) internal view returns (bool) {
+        uint256 poolPosSize = poolPositionSize[poolId];
+        for (uint256 i = 0; i < poolPosSize; i++) {
+            if (positionInfoMap[poolPositions[poolId][i]].positionState == positionState) {
+                return true;
+            }
+        }
+        return false;
     }
 
     function getPositionsByAccount(address account, PositionState positionState) public view returns (address[] memory) {
@@ -307,5 +301,9 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
 
     function setPriceOracle(address newPriceOracle) public isManager {
         priceOracle = IPriceOracle(newPriceOracle);
+    }
+
+    function setPoolRewardModel(address newPoolRewardModel) public isManager {
+        poolRewardModel = IPoolRewardModel(newPoolRewardModel);
     }
 }

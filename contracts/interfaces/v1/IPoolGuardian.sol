@@ -37,10 +37,12 @@ interface IPoolGuardian {
     function setStateFlag(uint256 poolId, PoolStatus status) external;
 
     function queryPools(address stakedToken, PoolStatus status) external view returns (uint256[] memory);
-    
+
     function getPoolIds() external view returns (uint256[] memory _poolIds);
 
     function getStrPoolImplementations(bytes4 _sig) external view returns (address);
+
+    function WETH() external view returns (address);
 
     /// @notice Emitted when this contract is deployed
     event PoolGuardianInitiated();

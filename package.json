@@ -15,7 +15,7 @@
     "type": "git",
     "url": "https://github.com/IPILabs/shorter-v1"
   },
-  "main": "hardhat.config.js",
+  "homepage": "https://app.shorter.finance",
   "scripts": {
     "build": "hardhat compile",
     "test": "hardhat test"
@@ -24,7 +24,6 @@
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@openzeppelin/contracts": "^3.1.0",
-    "chai": "^4.2.0",
     "dotenv": "^10.0.0",
     "ethereum-waffle": "^3.3.0",
     "ethers": "^5.3.1",
@@ -38,5 +37,6 @@
     "prettier": "^2.3.0",
     "prettier-plugin-solidity": "^1.0.0-beta.13",
     "solidity-coverage": "0.7.2"
-  }
+  },
+  "dependencies": {}
 }

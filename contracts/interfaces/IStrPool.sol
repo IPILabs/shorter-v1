@@ -14,7 +14,8 @@ interface IStrPool {
         address _poolRewardModel,
         uint256 poolId,
         uint256 leverage,
-        uint256 durationDays
+        uint256 durationDays,
+        address _WETH
     ) external;
 
     function setStateFlag(IPoolGuardian.PoolStatus newStateFlag) external;

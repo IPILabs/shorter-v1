@@ -13,6 +13,8 @@ import "../util/BoringMath.sol";
 contract PoolGuardianImpl is Rescuable, ChainSchema, Pausable, TheiaStorage, IPoolGuardian {
     using BoringMath for uint256;
 
+    address public override WETH;
+
     modifier onlyCommittee() {
         require(msg.sender == shorterBone.getAddress(AllyLibrary.COMMITTEE), "PoolGuardian: Caller is not Committee");
         _;
@@ -20,10 +22,11 @@ contract PoolGuardianImpl is Rescuable, ChainSchema, Pausable, TheiaStorage, IPo
 
     constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}
 
-    function initialize(address _shorterBone) external isKeeper {
+    function initialize(address _shorterBone, address _WETH) external isKeeper {
         require(!_initialized, "PoolGuardian: Already initialized");
         shorterBone = IShorterBone(_shorterBone);
         leverageAllowedList = [1, 2, 5];
+        WETH = _WETH;
         _initialized = true;
         emit PoolGuardianInitiated();
     }
@@ -41,7 +44,7 @@ contract PoolGuardianImpl is Rescuable, ChainSchema, Pausable, TheiaStorage, IPo
         address strToken = AllyLibrary.getShorterFactory(shorterBone).createStrPool(poolId, address(this));
         address tradingHub = shorterBone.getAddress(AllyLibrary.TRADING_HUB);
         address poolRewardModel = shorterBone.getAddress(AllyLibrary.POOL_REWARD);
-        IStrPool(strToken).initialize(creator, stakedToken, stableToken, wrapRouter, tradingHub, poolRewardModel, poolId, leverage, durationDays);
+        IStrPool(strToken).initialize(creator, stakedToken, stableToken, wrapRouter, tradingHub, poolRewardModel, poolId, leverage, durationDays, WETH);
         poolInfoMap[poolId] = PoolInfo({stakedToken: stakedToken, stableToken: stableToken, strToken: strToken, stateFlag: PoolStatus.GENESIS});
         poolIds.push(poolId);
         createPoolIds[creator].push(poolId);
@@ -114,7 +117,7 @@ contract PoolGuardianImpl is Rescuable, ChainSchema, Pausable, TheiaStorage, IPo
         }
 
         (, , uint256 multiplier) = shorterBone.getTokenInfo(stakedToken);
-        if ((multiplier > 680) && leverage == 10) {
+        if ((multiplier >= 680) && leverage == 10) {
             return true;
         }
 

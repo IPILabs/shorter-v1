@@ -8,4 +8,6 @@ interface IFarmingRewardModel {
     function harvest(address user) external returns (uint256 rewards);
 
     function pendingReward(address user) external view returns (uint256 unLockRewards, uint256 rewards);
+
+    function harvestByPool(address user) external returns (uint256 rewards);
 }

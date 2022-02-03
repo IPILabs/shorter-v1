@@ -40,6 +40,7 @@ contract StrPoolStorage is TitanCoreStorage {
     address public tradingHub;
     IPoolRewardModel public poolRewardModel;
     IPoolGuardian public poolGuardian;
+    address public WETH;
 
     struct PositionInfo {
         address trader;

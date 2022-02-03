@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
+pragma experimental ABIEncoderV2;
 
 /// @notice Interfaces of TradingHub
 interface ITradingHub {
@@ -9,6 +10,11 @@ interface ITradingHub {
         CLOSING, //2
         OVERDRAWN, // 3
         CLOSED // 4
+    }
+
+    struct BatchPositionInfo {
+        uint256 poolId;
+        address[] positions;
     }
 
     function getPositionInfo(address position)
@@ -30,6 +36,10 @@ interface ITradingHub {
     function executePositions(address[] memory positions) external;
 
     function isPoolWithdrawable(uint256 poolId) external view returns (bool);
+
+    function setBatchClosePositions(BatchPositionInfo[] memory batchPositionInfos) external;
+
+    function delivery(BatchPositionInfo[] memory batchPositionInfos) external;
 
     event PositionOpened(uint256 indexed poolId, address indexed trader, address indexed positionAddr, uint256 orderSize);
     event PositionIncreased(uint256 indexed poolId, address indexed trader, address indexed positionAddr, uint256 orderSize);

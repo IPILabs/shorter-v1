@@ -65,6 +65,11 @@ contract CommitteeImpl is Rescuable, ChainSchema, Pausable, CommitteStorage, ICo
         uint256 _leverage,
         uint256 _durationDays
     ) external chainReady whenNotPaused {
+        address WETH = AllyLibrary.getPoolGuardian(shorterBone).WETH();
+        require(_stakedTokenAddr != WETH, "Committee: Invalid stakedToken");
+        if (address(_stakedTokenAddr) == address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE)) {
+            _stakedTokenAddr = WETH;
+        }
         (bool inWhiteList, , ) = shorterBone.getTokenInfo(_stakedTokenAddr);
         require(inWhiteList, "Committee: Invalid stakedToken");
         require(_durationDays > 0 && _durationDays <= 1000, "Committee: Invalid duration");
@@ -162,7 +167,7 @@ contract CommitteeImpl is Rescuable, ChainSchema, Pausable, CommitteStorage, ICo
 
         uint256 failedProposalIndex;
         uint256[] memory failedProposals = new uint256[](proposalIds.length);
-        for (uint256 i = 1; i < proposalIds.length; i++) {
+        for (uint256 i = 0; i < proposalIds.length; i++) {
             if (proposalGallery[proposalIds[i]].status == ProposalStatus.Active && uint256(proposalGallery[proposalIds[i]].endBlock) < block.number) {
                 failedProposals[failedProposalIndex++] = proposalIds[i];
             }
@@ -195,7 +200,8 @@ contract CommitteeImpl is Rescuable, ChainSchema, Pausable, CommitteStorage, ICo
 
         for (uint256 i = 0; i < _failedProposals.length; i++) {
             Proposal storage failedProposal = proposalGallery[_failedProposals[i]];
-            require(failedProposal.status == ProposalStatus.Active && failedProposal.endBlock < block.number, "Committee: Invalid failedProposals");
+            if (failedProposal.status != ProposalStatus.Active) continue;
+            require(failedProposal.endBlock < block.number, "Committee: Invalid failedProposals");
             updateProposalStatus(_failedProposals[i], ProposalStatus.Failed);
             releaseRulerLockedShare(_failedProposals[i]);
         }

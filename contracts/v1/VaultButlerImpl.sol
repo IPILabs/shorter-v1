@@ -10,6 +10,7 @@ import "../interfaces/v1/IVaultButler.sol";
 import "../interfaces/v1/ITradingHub.sol";
 import "../interfaces/IShorterBone.sol";
 import "../interfaces/IStrPool.sol";
+import "../interfaces/IWETH.sol";
 import "../criteria/ChainSchema.sol";
 import "../storage/GaiaStorage.sol";
 import "../util/BoringMath.sol";
@@ -31,14 +32,19 @@ contract VaultButlerImpl is Rescuable, ChainSchema, Pausable, GaiaStorage, IVaul
         return _priceOfLegacy(positionInfo);
     }
 
-    function executeNaginata(address position, uint256 bidSize) external whenNotPaused onlyRuler(msg.sender) {
+    function executeNaginata(address position, uint256 bidSize) external payable whenNotPaused onlyRuler(msg.sender) {
         PositionInfo memory positionInfo = getPositionInfo(position);
         LegacyInfo storage legacyInfo = legacyInfos[position];
         require(bidSize > 0 && bidSize <= positionInfo.totalSize.sub(legacyInfo.bidSize), "VaultButler: Invalid bidSize");
         uint256 bidPrice = _priceOfLegacy(positionInfo);
         uint256 usedCash = bidSize.mul(bidPrice).div(10**(positionInfo.stakedTokenDecimals.add(18).sub(positionInfo.stableTokenDecimals)));
-
+        address _WETH = AllyLibrary.getPoolGuardian(shorterBone).WETH();
+        if (positionInfo.stakedToken == _WETH) {
+            require(bidSize == msg.value, "AuctionHall: Invalid amount");
+            IWETH(positionInfo.stakedToken).deposit{value: msg.value}();
+        } else {
         shorterBone.tillIn(positionInfo.stakedToken, msg.sender, AllyLibrary.VAULT_BUTLER, bidSize);
+        }
         IStrPool(positionInfo.strToken).stableTillOut(msg.sender, usedCash);
         legacyInfo.bidSize = legacyInfo.bidSize.add(bidSize);
         legacyInfo.usedCash = legacyInfo.usedCash.add(usedCash);

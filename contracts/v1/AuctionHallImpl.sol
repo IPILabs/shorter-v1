@@ -11,6 +11,7 @@ import "../interfaces/v1/ITradingHub.sol";
 import "../interfaces/v1/IAuctionHall.sol";
 import "../interfaces/IDexCenter.sol";
 import "../interfaces/IStrPool.sol";
+import "../interfaces/IWETH.sol";
 import "../criteria/ChainSchema.sol";
 import "../storage/ThemisStorage.sol";
 import "../util/BoringMath.sol";
@@ -32,7 +33,7 @@ contract AuctionHallImpl is Rescuable, ChainSchema, Pausable, ThemisStorage, IAu
         address position,
         uint256 bidSize,
         uint256 priorityFee
-    ) external whenNotPaused onlyRuler(msg.sender) {
+    ) external payable whenNotPaused onlyRuler(msg.sender) {
         PositionInfo memory positionInfo = getPositionInfo(position);
         require(bidSize > 0 && bidSize <= positionInfo.totalSize, "AuctionHall: Invalid bidSize");
         require(positionInfo.positionState == ITradingHub.PositionState.CLOSING, "AuctionHall: Not a closing position");
@@ -46,7 +47,12 @@ contract AuctionHallImpl is Rescuable, ChainSchema, Pausable, ThemisStorage, IAu
             phase1Info.flag = true;
         }
 
+        if (positionInfo.stakedToken == poolGuardian.WETH()) {
+            require(bidSize == msg.value, "AuctionHall: Invalid amount");
+            IWETH(positionInfo.stakedToken).deposit{value: msg.value}();
+        } else {
         shorterBone.tillIn(positionInfo.stakedToken, msg.sender, AllyLibrary.AUCTION_HALL, bidSize);
+        }
         shorterBone.tillIn(ipistrToken, msg.sender, AllyLibrary.AUCTION_HALL, priorityFee);
 
         allPhase1BidRecords[position].push(BidItem({takeBack: false, bidBlock: block.number.to64(), bidder: msg.sender, bidSize: bidSize, priorityFee: priorityFee}));
@@ -56,19 +62,22 @@ contract AuctionHallImpl is Rescuable, ChainSchema, Pausable, ThemisStorage, IAu
 
     function bidKatana(address position, bytes memory path) external whenNotPaused onlyRuler(msg.sender) {
         PositionInfo memory positionInfo = getPositionInfo(position);
-        require(path.getTokenIn() == address(positionInfo.stableToken), "AuctionHall: Invalid tokenIn");
-        require(path.getTokenOut() == address(positionInfo.stakedToken), "AuctionHall: Invalid tokenOut");
         require(positionInfo.positionState == ITradingHub.PositionState.CLOSING, "AuctionHall: Not a closing position");
         require(block.number.sub(positionInfo.closingBlock) > phase1MaxBlock && block.number.sub(positionInfo.closingBlock) <= auctionMaxBlock, "AuctionHall: Katana is over");
         Phase1Info storage phase1Info = phase1Infos[position];
         require(!phase1Info.flag, "AuctionHall: Position was closed");
-
         Phase2Info storage phase2Info = phase2Infos[position];
-
         uint256 phase1UsedUnsettledCash = phase1Info.bidSize.mul(phase1Info.liquidationPrice).div(10**(positionInfo.stakedTokenDecimals.add(18).sub(positionInfo.stableTokenDecimals)));
         phase2Info.debtSize = positionInfo.totalSize.sub(phase1Info.bidSize);
         uint256 estimatePhase2UseCash = positionInfo.unsettledCash.sub(phase1UsedUnsettledCash);
         (, address swapRouter, ) = shorterBone.getTokenInfo(address(positionInfo.stakedToken));
+        if (IDexCenter(dexCenter).isSwapRouterV3(swapRouter)) {
+            require(path.getTokenIn() == address(positionInfo.stakedToken), "AuctionHall: Invalid tokenIn");
+            require(path.getTokenOut() == address(positionInfo.stableToken), "AuctionHall: Invalid tokenOut");
+        } else {
+            require(path.getTokenIn() == address(positionInfo.stableToken), "AuctionHall: Invalid tokenIn");
+            require(path.getTokenOut() == address(positionInfo.stakedToken), "AuctionHall: Invalid tokenOut");
+        }
         phase2Info.usedCash = IStrPool(positionInfo.strToken).dexCover(IDexCenter(dexCenter).isSwapRouterV3(swapRouter), shorterBone.TetherToken() == address(positionInfo.stableToken), dexCenter, swapRouter, phase2Info.debtSize, estimatePhase2UseCash, path);
         phase2Info.rulerAddr = msg.sender;
         phase2Info.flag = true;
@@ -376,7 +385,12 @@ contract AuctionHallImpl is Rescuable, ChainSchema, Pausable, ThemisStorage, IAu
         }
 
         if (debtTokenSize > 0) {
+            if (stakedToken == poolGuardian.WETH()) {
+                IWETH(stakedToken).withdraw(debtTokenSize);
+                msg.sender.transfer(debtTokenSize);
+            } else {
             shorterBone.tillOut(stakedToken, AllyLibrary.AUCTION_HALL, msg.sender, debtTokenSize);
+        }
         }
 
         if (priorityFee > 0) {
@@ -398,6 +412,11 @@ contract AuctionHallImpl is Rescuable, ChainSchema, Pausable, ThemisStorage, IAu
                 bidItems[i].takeBack = true;
             }
         }
+    }
+
+    function updateBlocks(uint256 _phase1MaxBlock, uint256 _auctionMaxBlock) public isManager {
+        phase1MaxBlock = _phase1MaxBlock;
+        auctionMaxBlock = _auctionMaxBlock;
     }
 
     function setDexCenter(address newDexCenter) public isManager {

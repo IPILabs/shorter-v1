@@ -46,6 +46,7 @@ contract StrPoolTraderImpl is Affinity, Pausable, StrPoolStorage, ERC20 {
         shorterBone.poolTillIn(id, address(stableToken), trader, marginAmount);
 
         if (positionInfo.trader == address(0)) {
+            require(amountOut > 10**(uint256(stableTokenDecimals).add(1)), "StrPool: Too small position value");
             positionInfo.trader = trader;
             positionInfo.totalSize = amountIn;
             positionInfo.unsettledCash = unsettledCash;
@@ -77,7 +78,6 @@ contract StrPoolTraderImpl is Affinity, Pausable, StrPoolStorage, ERC20 {
         require(_amountInMax >= amountInMax, "StrPool: Invalid amountInMax");
 
         uint256 amountIn = buyCover(dexCenter, isSwapRouterV3, isTetherToken, amountOut, amountInMax, swapRouter, address(this), path);
-        require(positionInfo.unsettledCash.sub(amountIn) > 10**uint256(stableTokenDecimals) || amountOut == positionInfo.totalSize, "StrPool: remaining position value is less than 1");
         uint256 changePositionFee = amountIn.mul(getInterestRate(trader)).div(1e6);
 
         shorterBone.poolRevenue(id, trader, address(stableToken), changePositionFee, IShorterBone.IncomeType.TRADING_FEE);
@@ -89,6 +89,7 @@ contract StrPoolTraderImpl is Affinity, Pausable, StrPoolStorage, ERC20 {
             uint256 remainingShare = (positionInfo.totalSize.sub(amountOut)).mul(1e18).div(positionInfo.totalSize);
             positionInfo.totalSize = positionInfo.totalSize.sub(amountOut);
             positionInfo.unsettledCash = positionInfo.unsettledCash.mul(remainingShare).div(1e18);
+            require(positionInfo.unsettledCash > 10**(uint256(stableTokenDecimals).add(1)), "StrPool: Tiny position value left");
         }
 
         tradingVolumeOf[trader] = tradingVolumeOf[trader].add(amountIn);

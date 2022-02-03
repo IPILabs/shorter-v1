@@ -3,6 +3,7 @@ pragma solidity 0.6.12;
 
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "../libraries/AllyLibrary.sol";
+import "../interfaces/IWETH.sol";
 import "../criteria/Affinity.sol";
 import "../storage/StrPoolStorage.sol";
 import "../tokens/ERC20.sol";
@@ -15,7 +16,7 @@ contract StrPoolProviderImpl is Affinity, Pausable, StrPoolStorage, ERC20 {
         _;
     }
 
-    function deposit(uint256 amount) external whenNotPaused {
+    function deposit(uint256 amount) external payable whenNotPaused {
         require(uint256(endBlock) > block.number && stateFlag == IPoolGuardian.PoolStatus.RUNNING, "StrPool: Expired pool");
         _deposit(msg.sender, amount);
         poolRewardModel.harvestByStrToken(id, msg.sender, balanceOf[msg.sender].add(amount));
@@ -76,7 +77,8 @@ contract StrPoolProviderImpl is Affinity, Pausable, StrPoolStorage, ERC20 {
         address _poolRewardModel,
         uint256 _poolId,
         uint256 _leverage,
-        uint256 _durationDays
+        uint256 _durationDays,
+        address _WETH
     ) external onlyPoolGuardian {
         stakedToken = ISRC20(_stakedToken);
         stableToken = ISRC20(_stableToken);
@@ -93,6 +95,7 @@ contract StrPoolProviderImpl is Affinity, Pausable, StrPoolStorage, ERC20 {
         _decimals = stakedTokenDecimals;
         tradingHub = _tradingHub;
         poolRewardModel = IPoolRewardModel(_poolRewardModel);
+        WETH = _WETH;
         stakedToken.approve(address(shorterBone), uint256(0) - 1);
         stakedToken.approve(address(wrapRouter), uint256(0) - 1);
         wrappedToken.approve(address(shorterBone), uint256(0) - 1);
@@ -134,11 +137,11 @@ contract StrPoolProviderImpl is Affinity, Pausable, StrPoolStorage, ERC20 {
                 withdrawAmount = totalStakedTokenAmount.mul(userShare).mul(percent).div(1e20);
                 uint256 usdAmount = stableToken.balanceOf(address(this)).mul(userShare).mul(percent).div(1e20);
                 shorterBone.poolTillOut(id, address(stableToken), msg.sender, usdAmount);
-                burnAmount = userStakedTokenAmount[msg.sender].mul(userShare).mul(percent).div(1e20);
+                burnAmount = userStakedTokenAmount[msg.sender].mul(percent).div(100);
             } else if (userWrappedTokenAmount[msg.sender] > 0) {
                 uint256 userShare = userWrappedTokenAmount[msg.sender].mul(1e18).div(totalWrappedTokenAmount);
                 withdrawAmount = totalWrappedTokenAmount.mul(userShare).mul(percent).div(1e20);
-                burnAmount = userWrappedTokenAmount[msg.sender].mul(userShare).mul(percent).div(1e20);
+                burnAmount = userWrappedTokenAmount[msg.sender].mul(percent).div(100);
             } else {
                 revert("StrPool: Insufficient balance");
             }
@@ -155,8 +158,12 @@ contract StrPoolProviderImpl is Affinity, Pausable, StrPoolStorage, ERC20 {
     }
 
     function _deposit(address account, uint256 amount) internal {
-        if (stakedToken.balanceOf(account) >= amount) {
-            shorterBone.poolTillIn(id, address(stakedToken), account, amount);
+        if ((address(stakedToken) == WETH && amount == msg.value) || stakedToken.balanceOf(account) >= amount) {
+            if (address(stakedToken) == WETH) {
+                IWETH(WETH).deposit{value: msg.value}();
+            } else {
+                shorterBone.poolTillIn(id, address(stakedToken), account, amount);
+            }
             IWrapRouter(wrapRouter).wrap(address(stakedToken), amount);
             totalStakedTokenAmount = totalStakedTokenAmount.add(amount);
             userStakedTokenAmount[account] = userStakedTokenAmount[account].add(amount);
@@ -181,9 +188,19 @@ contract StrPoolProviderImpl is Affinity, Pausable, StrPoolStorage, ERC20 {
                 address treasury = shorterBone.getAddress(AllyLibrary.TREASURY);
                 uint256 revenueAmount = withdrawAmount.div(1000);
                 shorterBone.poolTillOut(id, address(stakedToken), treasury, revenueAmount);
-                shorterBone.poolTillOut(id, address(stakedToken), account, withdrawAmount.sub(revenueAmount));
+                if (address(stakedToken) == WETH) {
+                    IWETH(WETH).withdraw(withdrawAmount.sub(revenueAmount));
+                    msg.sender.transfer(withdrawAmount.sub(revenueAmount));
+                } else {
+                    shorterBone.poolTillOut(id, address(stakedToken), account, withdrawAmount.sub(revenueAmount));
+                }
             } else {
-                shorterBone.poolTillOut(id, address(stakedToken), account, withdrawAmount);
+                if (address(stakedToken) == WETH) {
+                    IWETH(WETH).withdraw(withdrawAmount);
+                    msg.sender.transfer(withdrawAmount);
+                } else {
+                    shorterBone.poolTillOut(id, address(stakedToken), account, withdrawAmount);
+                }
             }
             totalStakedTokenAmount = totalStakedTokenAmount.sub(withdrawAmount);
             userStakedTokenAmount[account] = userStakedTokenAmount[account].sub(burnAmount);

@@ -7,6 +7,7 @@ import "../interfaces/IDexCenter.sol";
 import "../interfaces/ISRC20.sol";
 import "../interfaces/v1/IPoolGuardian.sol";
 import "../interfaces/v1/ITradingHub.sol";
+import "../interfaces/v1/model/IPoolRewardModel.sol";
 import "../oracles/IPriceOracle.sol";
 import "./TitanCoreStorage.sol";
 import "../util/EnumerableMap.sol";
@@ -57,6 +58,7 @@ contract TradingStorage is TitanCoreStorage {
     IDexCenter public dexCenter;
     IPoolGuardian public poolGuardian;
     IPriceOracle public priceOracle;
+    IPoolRewardModel public poolRewardModel;
 
     mapping(uint256 => address) public allPositions;
     mapping(address => mapping(uint256 => PositionCube)) public userPositions;

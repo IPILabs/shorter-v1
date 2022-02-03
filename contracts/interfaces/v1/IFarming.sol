@@ -5,6 +5,10 @@ pragma solidity 0.6.12;
 interface IFarming {
     function getUserStakedAmount(address user) external view returns (uint256 userStakedAmount);
 
-    event Stake(address indexed user, uint256 amount);
-    event UnStake(address indexed user, uint256 amount);
+    function harvest(uint256 tokenId, address user) external;
+
+    function getTokenId() external view returns (uint256);
+
+    event Stake(address indexed user, uint256 indexed tokenId, uint256 liquidity, uint256 amount0, uint256 amount1);
+    event UnStake(address indexed user, uint256 indexed tokenId, uint256 liquidity, uint256 amount0, uint256 amount1);
 }

@@ -2,16 +2,12 @@
 pragma solidity 0.6.12;
 
 import "../../util/Ownable.sol";
+import "../../proxy/UpgradeabilityProxy.sol";
 
-contract Grandetie is Ownable {
-    bytes4 private constant SELECTOR = bytes4(keccak256(bytes("approve(address,uint256)")));
-
-    function approve(
-        address token,
-        address spender,
-        uint256 amount
-    ) external onlyOwner returns (bool) {
-        (bool success, ) = token.call(abi.encodeWithSelector(SELECTOR, spender, amount));
-        require(success, "WrappedRouter: Fatal exception. approve failed");
+contract Grandetie is UpgradeabilityProxy, Ownable {
+    constructor(address implementationContract, address newOwner) public UpgradeabilityProxy(implementationContract) {
+        setOwner(newOwner);
     }
+
+    receive() external payable {}
 }

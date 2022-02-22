@@ -44,18 +44,18 @@ contract PoolRewardModelStorage is TitanCoreStorage {
     uint256 internal constant IPISTR_DECIMAL_SCALER = 1e12;
 
     // poolId => (userAddr => rewardDebt) on basePool
-    mapping(uint256 => mapping(address => uint256)) internal baseRewardDebt;
+    mapping(uint256 => mapping(address => uint256)) public baseRewardDebt;
 
     // poolId => (userAddr => rewardDebt); userAddr is voter
-    mapping(uint256 => mapping(address => uint256)) internal voterRewardDebt;
+    mapping(uint256 => mapping(address => uint256)) public voterRewardDebt;
 
     // poolId => CreatorRewardDebt
-    mapping(uint256 => uint256) internal CreatorRewardDebt;
+    mapping(uint256 => uint256) public CreatorRewardDebt;
 
     // poolId => totalIpiStrAmount
-    mapping(uint256 => uint256) internal totalIpiStrAmount;
+    mapping(uint256 => uint256) public totalIpiStrAmount;
 
-    mapping(uint256 => uint256) internal totalTradingFees;
+    mapping(uint256 => uint256) public totalTradingFees;
 
     /// @notice Records of poolInfo indexed by id
     mapping(uint256 => PoolInfo) public poolInfoMap;

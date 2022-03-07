@@ -13,5 +13,5 @@ contract VoteRewardModelStorage is TitanCoreStorage {
     ICommittee public committee;
 
     // proposalId => (userAddr => isUserWithdrawn); user is withdraw
-    mapping(uint256 => mapping(address => bool)) internal isUserWithdraw;
+    mapping(uint256 => mapping(address => bool)) public isUserWithdraw;
 }

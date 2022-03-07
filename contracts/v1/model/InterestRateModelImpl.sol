@@ -69,8 +69,8 @@ contract InterestRateModelImpl is Rescuable, ChainSchema, Pausable, InterestRate
         require(!_initialized, "InterestRateModel: Already initialized");
 
         poolGuardian = IPoolGuardian(_poolGuardian);
-        multiplier = 125000;
-        jumpMultiplier = 2000000;
+        multiplier = 500000;
+        jumpMultiplier = 2500000;
         kink = 8 * 1e17;
         annualized = 1e5;
 

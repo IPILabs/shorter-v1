@@ -147,19 +147,22 @@ contract DexCenter is Affinity, IDexCenter {
         for (uint256 i = 0; i < fees.length; i++) {
             address poolAddr = swapFactory.getPool(path[i], path[i + 1], fees[i]);
             (uint160 sqrtPriceX96, , , , , , ) = IUniswapV3Pool(poolAddr).slot0();
-            address tokenIn = IUniswapV3Pool(poolAddr).token0();
-            uint256 tokenInDecimals = uint256(ISRC20(path[i]).decimals());
-            uint256 tokenOutDecimals = uint256(ISRC20(path[i + 1]).decimals());
-            if (tokenIn == path[i]) {
-                uint256 sqrtDecimals = (uint256(19).add(tokenInDecimals).sub(tokenOutDecimals)).div(2);
+            address token0 = IUniswapV3Pool(poolAddr).token0();
+            uint256 token0Decimals = uint256(ISRC20(token0).decimals());
+            uint256 token1Decimals = path[i] == token0 ? uint256(ISRC20(path[i + 1]).decimals()) : uint256(ISRC20(path[i]).decimals());
+            uint256 token0Price;
+            uint256 sqrtDecimals = uint256(18).add(token0Decimals).sub(token1Decimals).div(2);
+            if (sqrtDecimals.mul(2) == uint256(18).add(token0Decimals).sub(token1Decimals)) {
                 uint256 sqrtPrice = uint256(sqrtPriceX96).mul(10**sqrtDecimals).div(2**96);
-                price = sqrtDecimals.mul(2) == uint256(19).add(tokenInDecimals).sub(tokenOutDecimals) ? sqrtPrice.mul(sqrtPrice).mul(price).div(1e19) : sqrtPrice.mul(sqrtPrice).mul(price).div(1e18);
+                token0Price = sqrtPrice.mul(sqrtPrice);
             } else {
-                uint256 sqrtDecimals = (uint256(19).add(tokenOutDecimals).sub(tokenInDecimals)).div(2);
-                uint256 sqrtPrice = uint256(sqrtPriceX96).mul(10**sqrtDecimals).div(2**96);
-                uint256 _price = sqrtDecimals.mul(2) == uint256(19).add(tokenOutDecimals).sub(tokenInDecimals) ? sqrtPrice.mul(sqrtPrice).div(10) : sqrtPrice.mul(sqrtPrice);
-                _price = uint256(1e36).div(_price);
-                price = price.mul(_price).div(1e18);
+                uint256 sqrtPrice = uint256(sqrtPriceX96).mul(10**(sqrtDecimals + 1)).div(2**96);
+                token0Price = sqrtPrice.mul(sqrtPrice).div(10);
+            }
+            if (token0 == path[i]) {
+                price = price.mul(token0Price).div(1e18);
+            } else {
+                price = price.mul(uint256(1e36).div(token0Price)).div(1e18);
             }
         }
     }

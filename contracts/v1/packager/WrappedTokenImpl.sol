@@ -13,7 +13,7 @@ contract WrappedTokenImpl is Ownable, Pausable, Whitelistable, WrappedTokenStora
     /**
      * @dev Returns the name of the token.
      */
-    function name() public view returns (string memory) {
+    function name() external view returns (string memory) {
         return _name;
     }
 
@@ -21,7 +21,7 @@ contract WrappedTokenImpl is Ownable, Pausable, Whitelistable, WrappedTokenStora
      * @dev Returns the symbol of the token, usually a shorter version of the
      * name.
      */
-    function symbol() public view returns (string memory) {
+    function symbol() external view returns (string memory) {
         return _symbol;
     }
 
@@ -30,7 +30,7 @@ contract WrappedTokenImpl is Ownable, Pausable, Whitelistable, WrappedTokenStora
      * For example, if `decimals` equals `2`, a balance of `505` tokens should
      * be displayed to a user as `5,05` (`505 / 10 ** 2`).
      */
-    function decimals() public view returns (uint8) {
+    function decimals() external view returns (uint8) {
         return _decimals;
     }
 
@@ -44,7 +44,7 @@ contract WrappedTokenImpl is Ownable, Pausable, Whitelistable, WrappedTokenStora
         emit Transfer(from, to, value);
     }
 
-    function transfer(address to, uint256 value) external whenNotPaused notWhitelisted(msg.sender) notWhitelisted(to) returns (bool) {
+    function transfer(address to, uint256 value) external whenNotPaused whitelisted(msg.sender) whitelisted(to) returns (bool) {
         _transfer(msg.sender, to, value);
         return true;
     }
@@ -53,7 +53,7 @@ contract WrappedTokenImpl is Ownable, Pausable, Whitelistable, WrappedTokenStora
         address from,
         address to,
         uint256 value
-    ) external whenNotPaused notWhitelisted(from) notWhitelisted(to) returns (bool) {
+    ) external whenNotPaused whitelisted(from) whitelisted(to) returns (bool) {
         if (allowance[from][msg.sender] != uint256(-1)) {
             allowance[from][msg.sender] = allowance[from][msg.sender].sub(value);
         }
@@ -62,13 +62,13 @@ contract WrappedTokenImpl is Ownable, Pausable, Whitelistable, WrappedTokenStora
         return true;
     }
 
-    function approve(address spender, uint256 amount) public returns (bool) {
+    function approve(address spender, uint256 amount) external returns (bool) {
         allowance[msg.sender][spender] = amount;
         emit Approval(msg.sender, spender, amount);
         return true;
     }
 
-    function totalSupply() public view returns (uint256) {
+    function totalSupply() external view returns (uint256) {
         return _totalSupply;
     }
 
@@ -91,11 +91,7 @@ contract WrappedTokenImpl is Ownable, Pausable, Whitelistable, WrappedTokenStora
         balanceOf[user] = balanceOf[user].sub(amount);
     }
 
-    function setTotalSupplyf7b8457d(uint256 totalSupply_) external {
-        _totalSupply = totalSupply_;
-    }
-
-    function setMinter(address newMinter, bool flag) public onlyOwner {
+    function setMinter(address newMinter, bool flag) external onlyOwner {
         minter[newMinter] = flag;
     }
 
@@ -103,7 +99,7 @@ contract WrappedTokenImpl is Ownable, Pausable, Whitelistable, WrappedTokenStora
         string memory name_,
         string memory symbol_,
         uint256 decimals_
-    ) public {
+    ) external onlyOwner {
         _name = name_;
         _symbol = symbol_;
         _decimals = uint8(decimals_);

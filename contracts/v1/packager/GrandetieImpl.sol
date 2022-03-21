@@ -2,9 +2,12 @@
 pragma solidity 0.6.12;
 
 import "../../util/Ownable.sol";
+import "../Rescuable.sol";
 
-contract GrandetieImpl is Ownable {
+contract GrandetieImpl is Ownable, Rescuable {
     bytes4 private constant SELECTOR = bytes4(keccak256(bytes("approve(address,uint256)")));
+
+    constructor(address _committee) public Rescuable(_committee) {}
 
     function approve(
         address token,
@@ -12,6 +15,6 @@ contract GrandetieImpl is Ownable {
         uint256 amount
     ) external onlyOwner returns (bool) {
         (bool success, ) = token.call(abi.encodeWithSelector(SELECTOR, spender, amount));
-        require(success, "WrappedRouter: Approve failed");
+        require(success, "Grandetie: Approve failed");
     }
 }

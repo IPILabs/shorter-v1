@@ -28,7 +28,6 @@ library AllyLibrary {
     bytes32 public constant PRICE_ORACLE = keccak256("PRICE_ORACLE");
     bytes32 public constant POOL_GUARDIAN = keccak256("POOL_GUARDIAN");
     bytes32 public constant SAVIOR_ADDRESS = keccak256("SAVIOR_ADDRESS");
-    bytes32 public constant STATE_ARCADE = keccak256("STATE_ARCADE");
     bytes32 public constant TRADING_HUB = keccak256("TRADING_HUB");
     bytes32 public constant VAULT_BUTLER = keccak256("VAULT_BUTLER");
     bytes32 public constant TREASURY = keccak256("TREASURY");
@@ -57,14 +56,6 @@ library AllyLibrary {
         auctionHall = IAuctionHall(shorterBone.getAddress(AUCTION_HALL));
     }
 
-    function getIpistrToken(IShorterBone shorterBone) internal view returns (IIpistrToken ipistrToken) {
-        ipistrToken = IIpistrToken(shorterBone.getAddress(IPI_STR));
-    }
-
-    function getVaultButler(IShorterBone shorterBone) internal view returns (IVaultButler vaultButler) {
-        vaultButler = IVaultButler(shorterBone.getAddress(VAULT_BUTLER));
-    }
-
     function getPoolGuardian(IShorterBone shorterBone) internal view returns (IPoolGuardian poolGuardian) {
         poolGuardian = IPoolGuardian(shorterBone.getAddress(POOL_GUARDIAN));
     }
@@ -73,40 +64,12 @@ library AllyLibrary {
         priceOracle = IPriceOracle(shorterBone.getAddress(PRICE_ORACLE));
     }
 
-    function getCommittee(IShorterBone shorterBone) internal view returns (ICommittee committee) {
-        committee = ICommittee(shorterBone.getAddress(COMMITTEE));
-    }
-
-    function getStateArcade(IShorterBone shorterBone) internal view returns (IStateArcade stateArcade) {
-        stateArcade = IStateArcade(shorterBone.getAddress(STATE_ARCADE));
-    }
-
     function getGovRewardModel(IShorterBone shorterBone) internal view returns (IGovRewardModel govRewardModel) {
         govRewardModel = IGovRewardModel(shorterBone.getAddress(GOV_REWARD));
     }
 
-    function getPoolRewardModel(IShorterBone shorterBone) internal view returns (IPoolRewardModel poolRewardModel) {
-        poolRewardModel = IPoolRewardModel(shorterBone.getAddress(POOL_REWARD));
-    }
-
     function getTradingHub(IShorterBone shorterBone) internal view returns (ITradingHub tradingHub) {
         tradingHub = ITradingHub(shorterBone.getAddress(TRADING_HUB));
-    }
-
-    function getVoteRewardModel(IShorterBone shorterBone) internal view returns (IVoteRewardModel voteRewardModel) {
-        voteRewardModel = IVoteRewardModel(shorterBone.getAddress(VOTE_REWARD));
-    }
-
-    function getFarming(IShorterBone shorterBone) internal view returns (IFarming farming) {
-        farming = IFarming(shorterBone.getAddress(FARMING));
-    }
-
-    function getFarmingRewardModel(IShorterBone shorterBone) internal view returns (IFarmingRewardModel farmingRewardModel) {
-        farmingRewardModel = IFarmingRewardModel(shorterBone.getAddress(FARMING_REWARD));
-    }
-
-    function getTradingRewardModel(IShorterBone shorterBone) internal view returns (ITradingRewardModel tradingRewardModel) {
-        tradingRewardModel = ITradingRewardModel(shorterBone.getAddress(TRADING_REWARD));
     }
 
     function getInterestRateModel(IShorterBone shorterBone) internal view returns (IInterestRateModel interestRateModel) {

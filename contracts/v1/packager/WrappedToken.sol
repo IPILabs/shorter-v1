@@ -5,9 +5,7 @@ import "../../util/Ownable.sol";
 import "../../proxy/UpgradeabilityProxy.sol";
 
 contract WrappedToken is UpgradeabilityProxy, Ownable {
-    constructor(address implementationContract, address newOwner) public UpgradeabilityProxy(implementationContract) {
-        setOwner(newOwner);
-    }
+    constructor(address implementationContract) public UpgradeabilityProxy(implementationContract) {}
 
     receive() external payable {}
 }

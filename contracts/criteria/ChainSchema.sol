@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
 
+import "@openzeppelin/contracts/utils/Pausable.sol";
+import "./Affinity.sol";
+
 /// @notice Configuration meters for various chain deployment
-/// @author IPILabs
-contract ChainSchema {
+/// @author IPI Labs
+contract ChainSchema is Affinity, Pausable {
     bool private _initialized;
 
     string internal _chainShortName;
@@ -11,7 +14,9 @@ contract ChainSchema {
     uint256 internal _blocksPerDay;
     uint256 internal _secondsPerBlock;
 
-    event ChainConfigured(address indexed thisAddr, string shortName, string fullName, uint256 secondsPerBlock);
+    constructor(address _SAVIOR) public Affinity(_SAVIOR) {}
+
+    event ChainConfigured(address indexed thisAddr, string indexed shortName, string fullName, uint256 secondsPerBlock);
 
     modifier chainReady() {
         require(_initialized, "ChainSchema: Waiting to be configured");
@@ -22,7 +27,7 @@ contract ChainSchema {
         string memory shortName,
         string memory fullName,
         uint256 secondsPerBlock
-    ) public {
+    ) external isKeeper {
         require(!_initialized, "ChainSchema: Reconfiguration is not allowed");
         require(secondsPerBlock > 0, "ChainSchema: Invalid secondsPerBlock");
 
@@ -35,11 +40,11 @@ contract ChainSchema {
         emit ChainConfigured(address(this), shortName, fullName, secondsPerBlock);
     }
 
-    function chainShortName() public view returns (string memory) {
+    function chainShortName() external view returns (string memory) {
         return _chainShortName;
     }
 
-    function chainFullName() public view returns (string memory) {
+    function chainFullName() external view returns (string memory) {
         return _chainFullName;
     }
 
@@ -49,6 +54,14 @@ contract ChainSchema {
 
     function secondsPerBlock() public view returns (uint256) {
         return _secondsPerBlock;
+    }
+
+    function pause() external isKeeper {
+        _pause();
+    }
+
+    function unpause() external isKeeper {
+        _unpause();
     }
 
     function getChainId() public pure returns (uint256) {

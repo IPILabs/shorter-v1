@@ -8,7 +8,7 @@ import "./IAffinity.sol";
 
 /// @notice Arch design for roles and privileges management
 contract Affinity is AccessControl, IAffinity {
-    address internal SAVIOR;
+    address public SAVIOR;
 
     /// @notice Initial bunch of roles
     bytes32 public constant ROOT_GROUP = keccak256("ROOT_GROUP");
@@ -31,6 +31,11 @@ contract Affinity is AccessControl, IAffinity {
         _;
     }
 
+    modifier isSavior() {
+        require(msg.sender == SAVIOR, "Affinity: Caller is not the Savior");
+        _;
+    }
+
     modifier onlyEOA() {
         require(msg.sender == tx.origin, "Affinity: EOA required");
         _;
@@ -44,6 +49,15 @@ contract Affinity is AccessControl, IAffinity {
         _setRoleAdmin(KEEPER_ROLE, ROOT_GROUP);
         _setRoleAdmin(MANAGER_ROLE, ROOT_GROUP);
         _setRoleAdmin(ALLY_ROLE, ROOT_GROUP);
+    }
+
+    function transferSavior(address multiSigWallet) external isSavior {
+        require(multiSigWallet != address(0), "Affinity: Account is zero address");
+        require(Address.isContract(multiSigWallet), "Affinity: EOA is not allowed");
+        require(SAVIOR != multiSigWallet, "Affinity: Nonsense");
+        SAVIOR = multiSigWallet;
+        _setupRole(ROOT_GROUP, multiSigWallet);
+        renounceRole(ROOT_GROUP, msg.sender);
     }
 
     function allow(

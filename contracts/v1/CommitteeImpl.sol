@@ -2,15 +2,14 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../libraries/AllyLibrary.sol";
 import "../interfaces/governance/ICommittee.sol";
 import "../criteria/ChainSchema.sol";
 import "../storage/CommitteStorage.sol";
 import "../util/BoringMath.sol";
-import "./Rescuable.sol";
 
-contract CommitteeImpl is Rescuable, ChainSchema, Pausable, CommitteStorage, ICommittee {
+contract CommitteeImpl is ChainSchema, CommitteStorage, ReentrancyGuard, ICommittee {
     using BoringMath for uint256;
     using EnumerableSet for EnumerableSet.UintSet;
 
@@ -19,11 +18,16 @@ contract CommitteeImpl is Rescuable, ChainSchema, Pausable, CommitteStorage, ICo
         _;
     }
 
-    constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}
+    constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
-    function initialize(address _shorterBone, address _ipistrToken) public isKeeper {
+    function initialize(
+        address _shorterBone,
+        address _ipistrToken,
+        address _stableToken
+    ) external isSavior {
         shorterBone = IShorterBone(_shorterBone);
         ipistrToken = IIpistrToken(_ipistrToken);
+        stableToken = _stableToken;
         maxVotingDays = 2;
         proposalFee = 1e22;
         rulerThreshold = 1e9;
@@ -64,11 +68,11 @@ contract CommitteeImpl is Rescuable, ChainSchema, Pausable, CommitteStorage, ICo
         address _stakedTokenAddr,
         uint256 _leverage,
         uint256 _durationDays
-    ) external chainReady whenNotPaused {
-        address WETH = AllyLibrary.getPoolGuardian(shorterBone).WETH();
-        require(_stakedTokenAddr != WETH, "Committee: Invalid stakedToken");
+    ) external chainReady whenNotPaused nonReentrant {
+        address WrappedEtherAddr = AllyLibrary.getPoolGuardian(shorterBone).WrappedEtherAddr();
+        require(_stakedTokenAddr != WrappedEtherAddr, "Committee: Invalid stakedToken");
         if (address(_stakedTokenAddr) == address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE)) {
-            _stakedTokenAddr = WETH;
+            _stakedTokenAddr = WrappedEtherAddr;
         }
         (bool inWhiteList, , ) = shorterBone.getTokenInfo(_stakedTokenAddr);
         require(inWhiteList, "Committee: Invalid stakedToken");
@@ -93,7 +97,7 @@ contract CommitteeImpl is Rescuable, ChainSchema, Pausable, CommitteStorage, ICo
         bytes[] memory calldatas,
         string memory description,
         string memory title
-    ) external chainReady whenNotPaused {
+    ) external chainReady whenNotPaused nonReentrant {
         require(targets.length == values.length && targets.length == signatures.length && targets.length == calldatas.length, "Committee: Proposal function information arity mismatch");
         require(targets.length > 0, "Committee: Actions are required");
         require(targets.length <= 10, "Committee: Too many actions");
@@ -131,7 +135,7 @@ contract CommitteeImpl is Rescuable, ChainSchema, Pausable, CommitteStorage, ICo
         //Lock user's vote power
         rulerData.voteShareLocked = rulerData.voteShareLocked.add(voteShare);
 
-        voteShares storage userVoteShare = userLockedShare[proposalId][msg.sender];
+        VoteShares storage userVoteShare = userLockedShare[proposalId][msg.sender];
 
         // bool _finished;
         if (direction) {
@@ -141,8 +145,8 @@ contract CommitteeImpl is Rescuable, ChainSchema, Pausable, CommitteStorage, ICo
             bool _finished = ((uint256(proposal.forShares).mul(10) >= totalIpistrStakedShare) && uint256(proposal.catagory) == uint256(1)) || ((uint256(proposal.forShares).mul(2) >= totalIpistrStakedShare) && uint256(proposal.catagory) == uint256(2));
             if (_finished) {
                 updateProposalStatus(proposalId, ProposalStatus.Passed);
-                makeProposalQueued(proposal);
-                releaseRulerLockedShare(proposal.id);
+                _makeProposalQueued(proposal);
+                _releaseRulerLockedShare(proposal.id);
             }
         } else {
             proposal.againstShares = voteShare.add(proposal.againstShares);
@@ -151,7 +155,7 @@ contract CommitteeImpl is Rescuable, ChainSchema, Pausable, CommitteStorage, ICo
             bool _finished = ((uint256(proposal.againstShares).mul(10) >= totalIpistrStakedShare) && uint256(proposal.catagory) == uint256(1)) || ((uint256(proposal.againstShares).mul(2) >= totalIpistrStakedShare) && uint256(proposal.catagory) == uint256(2));
             if (_finished) {
                 updateProposalStatus(proposalId, ProposalStatus.Failed);
-                releaseRulerLockedShare(proposal.id);
+                _releaseRulerLockedShare(proposal.id);
             }
         }
 
@@ -203,20 +207,20 @@ contract CommitteeImpl is Rescuable, ChainSchema, Pausable, CommitteStorage, ICo
             if (failedProposal.status != ProposalStatus.Active) continue;
             require(failedProposal.endBlock < block.number, "Committee: Invalid failedProposals");
             updateProposalStatus(_failedProposals[i], ProposalStatus.Failed);
-            releaseRulerLockedShare(_failedProposals[i]);
+            _releaseRulerLockedShare(_failedProposals[i]);
         }
     }
 
-    function executedCommunityProposal(uint256 proposalId) public {
+    function executedCommunityProposal(uint256 proposalId) external {
         require(proposalGallery[proposalId].status == ProposalStatus.Queued, "Committee: Proposal is not in queue");
         CommunityProposal storage communityProposal = communityProposalGallery[proposalId];
         for (uint256 i = 0; i < communityProposal.targets.length; i++) {
-            executeTransaction(communityProposal.targets[i], communityProposal.values[i], communityProposal.signatures[i], communityProposal.calldatas[i]);
+            _executeTransaction(communityProposal.targets[i], communityProposal.values[i], communityProposal.signatures[i], communityProposal.calldatas[i]);
         }
         updateProposalStatus(proposalId, ProposalStatus.Executed);
     }
 
-    function executeTransaction(
+    function _executeTransaction(
         address target,
         uint256 value,
         string memory signature,
@@ -308,7 +312,7 @@ contract CommitteeImpl is Rescuable, ChainSchema, Pausable, CommitteStorage, ICo
     }
 
     /// @notice Switch proposal's display state
-    function updateProposalDisplayable(uint256 proposalId, bool displayable) external isManager {
+    function updateProposalDisplayable(uint256 proposalId, bool displayable) external isKeeper {
         proposalGallery[proposalId].displayable = displayable;
     }
 
@@ -326,11 +330,7 @@ contract CommitteeImpl is Rescuable, ChainSchema, Pausable, CommitteStorage, ICo
         emit RulerThresholdSet(oldRulerThreshold, newRulerThreshold);
     }
 
-    function setStableToken(address newStableTokenAddr) external isManager {
-        stableToken = newStableTokenAddr;
-    }
-
-    function makeProposalQueued(Proposal storage proposal) internal {
+    function _makeProposalQueued(Proposal storage proposal) internal {
         if (proposal.status != ProposalStatus.Passed) {
             return;
         }
@@ -342,7 +342,7 @@ contract CommitteeImpl is Rescuable, ChainSchema, Pausable, CommitteStorage, ICo
         }
     }
 
-    function releaseRulerLockedShare(uint256 proposalId) internal {
+    function _releaseRulerLockedShare(uint256 proposalId) internal {
         for (uint256 i = 0; i < proposalVoters[proposalId].length(); i++) {
             address voter = proposalVoters[proposalId].at(i);
             uint256 lockedShare = userLockedShare[proposalId][voter].forShares.add(userLockedShare[proposalId][voter].againstShares);

@@ -5,9 +5,5 @@ import "../proxy/TitanProxy.sol";
 import "../storage/CommitteStorage.sol";
 
 contract Committee is TitanProxy, CommitteStorage {
-    constructor(
-        address _SAVIOR,
-        address _implementation,
-        address _shorterBone
-    ) public TitanProxy(_SAVIOR, _implementation) {}
+    constructor(address _SAVIOR, address _implementationContract) public TitanProxy(_SAVIOR, _implementationContract) {}
 }

@@ -51,7 +51,7 @@ contract CommitteStorage is TitanCoreStorage {
         uint256 share;
     }
 
-    struct voteShares {
+    struct VoteShares {
         uint256 forShares;
         uint256 againstShares;
     }
@@ -89,7 +89,7 @@ contract CommitteStorage is TitanCoreStorage {
     mapping(uint256 => PoolMeters) public poolMetersMap;
 
     // proposalId => ruler address => share
-    mapping(uint256 => mapping(address => voteShares)) public userLockedShare;
+    mapping(uint256 => mapping(address => VoteShares)) public userLockedShare;
 
     mapping(uint256 => EnumerableSet.AddressSet) internal proposalVoters;
 

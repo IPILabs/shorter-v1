@@ -4,7 +4,7 @@ pragma solidity 0.6.12;
 import "./v1/IPoolGuardian.sol";
 import "./v1/ITradingHub.sol";
 
-interface IStrPool {
+interface IPool {
     function initialize(
         address creator,
         address stakedToken,
@@ -15,12 +15,13 @@ interface IStrPool {
         uint256 poolId,
         uint256 leverage,
         uint256 durationDays,
-        address _WETH
+        uint256 blocksPerDay,
+        address wrappedEtherAddr
     ) external;
 
     function setStateFlag(IPoolGuardian.PoolStatus newStateFlag) external;
 
-    function listPool(uint256 blocksPerDay) external;
+    function list() external;
 
     function getInfo()
         external
@@ -86,7 +87,7 @@ interface IStrPool {
 
     function batchUpdateFundingFee(address[] memory positions) external;
 
-    function delivery(bool _isDelivery) external;
+    function delivery(bool _isLegacyLeftover) external;
 
     function stableTillOut(address bidder, uint256 amount) external;
 

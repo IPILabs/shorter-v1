@@ -10,7 +10,7 @@ interface IPoolGuardian {
         GENESIS,
         RUNNING,
         LIQUIDATING,
-        RECOVER,
+        DELIVERING,
         ENDED
     }
 
@@ -40,14 +40,14 @@ interface IPoolGuardian {
 
     function getPoolIds() external view returns (uint256[] memory _poolIds);
 
-    function getStrPoolImplementations(bytes4 _sig) external view returns (address);
+    function getPoolInvokers(bytes4 _sig) external view returns (address);
 
-    function WETH() external view returns (address);
+    function WrappedEtherAddr() external view returns (address);
 
     /// @notice Emitted when this contract is deployed
     event PoolGuardianInitiated();
-    /// @notice Emitted when a delisted pool go back
-    event PoolListed(uint256 indexed poolId);
-    /// @notice Emitted when a listing pool is delisted
-    event PoolDelisted(uint256 indexed poolId);
+
+    event PoolStatusChanged(uint256 indexed poolId, PoolStatus poolStatus);
+
+    event PoolInvokerChanged(address keeper, address poolInvoker, bytes4[] sigs);
 }

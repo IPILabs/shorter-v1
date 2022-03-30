@@ -1,32 +1,36 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
 
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "../libraries/AllyLibrary.sol";
-import "../interfaces/IStrPool.sol";
+import "../interfaces/IPool.sol";
 import "../interfaces/v1/IWrapRouter.sol";
 import "../criteria/ChainSchema.sol";
 import "../storage/TheiaStorage.sol";
-import "./Rescuable.sol";
 import "../util/BoringMath.sol";
 
-contract PoolGuardianImpl is Rescuable, ChainSchema, Pausable, TheiaStorage, IPoolGuardian {
+contract PoolGuardianImpl is ChainSchema, TheiaStorage, IPoolGuardian {
     using BoringMath for uint256;
 
-    address public override WETH;
+    address public override WrappedEtherAddr;
 
     modifier onlyCommittee() {
         require(msg.sender == shorterBone.getAddress(AllyLibrary.COMMITTEE), "PoolGuardian: Caller is not Committee");
         _;
     }
 
-    constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}
+    constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
-    function initialize(address _shorterBone, address _WETH) external isKeeper {
+    function initialize(
+        address _shorterBone,
+        address _WrappedEtherAddr,
+        uint256[] memory _levelScoresDef,
+        uint256[] memory _leverageThresholds
+    ) external isSavior {
         require(!_initialized, "PoolGuardian: Already initialized");
+        require(_levelScoresDef.length == _leverageThresholds.length, "PoolGuardian: Invalid leverage params");
         shorterBone = IShorterBone(_shorterBone);
-        leverageAllowedList = [1, 2, 5];
-        WETH = _WETH;
+        levelScoresDef = _levelScoresDef;
+        leverageThresholds = _leverageThresholds;
+        WrappedEtherAddr = _WrappedEtherAddr;
         _initialized = true;
         emit PoolGuardianInitiated();
     }
@@ -40,11 +44,11 @@ contract PoolGuardianImpl is Rescuable, ChainSchema, Pausable, TheiaStorage, IPo
         uint256 durationDays,
         uint256 poolId
     ) external override onlyCommittee {
-        require(checkLeverageValid(stakedToken, leverage), "PoolGuardian: Invalid leverage");
+        require(_checkLeverageValid(stakedToken, leverage), "PoolGuardian: Invalid leverage");
         address strToken = AllyLibrary.getShorterFactory(shorterBone).createStrPool(poolId, address(this));
         address tradingHub = shorterBone.getAddress(AllyLibrary.TRADING_HUB);
         address poolRewardModel = shorterBone.getAddress(AllyLibrary.POOL_REWARD);
-        IStrPool(strToken).initialize(creator, stakedToken, stableToken, wrapRouter, tradingHub, poolRewardModel, poolId, leverage, durationDays, WETH);
+        IPool(strToken).initialize(creator, stakedToken, stableToken, wrapRouter, tradingHub, poolRewardModel, poolId, leverage, durationDays, blocksPerDay(), WrappedEtherAddr);
         poolInfoMap[poolId] = PoolInfo({stakedToken: stakedToken, stableToken: stableToken, strToken: strToken, stateFlag: PoolStatus.GENESIS});
         poolIds.push(poolId);
         createPoolIds[creator].push(poolId);
@@ -52,7 +56,7 @@ contract PoolGuardianImpl is Rescuable, ChainSchema, Pausable, TheiaStorage, IPo
 
     function listPool(uint256 poolId) external override onlyCommittee {
         PoolInfo storage pool = poolInfoMap[poolId];
-        IStrPool(pool.strToken).listPool(blocksPerDay());
+        IPool(pool.strToken).list();
         pool.stateFlag = IPoolGuardian.PoolStatus.RUNNING;
     }
 
@@ -87,44 +91,35 @@ contract PoolGuardianImpl is Rescuable, ChainSchema, Pausable, TheiaStorage, IPo
         PoolInfo storage pool = poolInfoMap[poolId];
         pool.stateFlag = status;
 
-        IStrPool(pool.strToken).setStateFlag(status);
-        if (status == PoolStatus.RUNNING) {
-            emit PoolListed(poolId);
-        } else if (status == PoolStatus.ENDED) {
-            emit PoolDelisted(poolId);
-        }
+        IPool(pool.strToken).setStateFlag(status);
     }
 
-    function setStrPoolImplementations(bytes4[] memory _sigs, address _implementation) public isManager {
+    function setPoolInvokers(bytes4[] memory _sigs, address _implementation) external isKeeper {
         for (uint256 i = 0; i < _sigs.length; i++) {
-            strPoolImplementations[_sigs[i]] = _implementation;
+            poolInvokers[_sigs[i]] = _implementation;
         }
+        emit PoolInvokerChanged(msg.sender, _implementation, _sigs);
     }
 
-    function setWrapRouter(address newWrapRouter) external isManager {
+    function setWrapRouter(address newWrapRouter) external isKeeper {
+        require(newWrapRouter != address(0));
         wrapRouter = newWrapRouter;
     }
 
-    function checkLeverageValid(address stakedToken, uint256 leverage) internal view returns (bool res) {
+    function _checkLeverageValid(address stakedToken, uint256 leverage) internal view returns (bool res) {
         if (maxLeverage[stakedToken] > 0 && leverage <= maxLeverage[stakedToken]) {
             return true;
         }
-
-        for (uint256 i = 0; i < leverageAllowedList.length; i++) {
-            if (leverageAllowedList[i] == leverage) {
+        (, , uint256 multiplier) = shorterBone.getTokenInfo(stakedToken);
+        for (uint256 i = 0; i < levelScoresDef.length; i++) {
+            if (multiplier >= levelScoresDef[i] && leverage <= leverageThresholds[i]) {
                 return true;
             }
         }
-
-        (, , uint256 multiplier) = shorterBone.getTokenInfo(stakedToken);
-        if ((multiplier >= 680) && leverage == 10) {
-            return true;
-        }
-
         return false;
     }
 
-    function queryPools(address stakedToken, PoolStatus status) public view override returns (uint256[] memory) {
+    function queryPools(address stakedToken, PoolStatus status) external view override returns (uint256[] memory) {
         uint256 poolSize = poolIds.length;
         uint256[] memory poolContainer = new uint256[](poolSize);
 
@@ -144,7 +139,7 @@ contract PoolGuardianImpl is Rescuable, ChainSchema, Pausable, TheiaStorage, IPo
         return resPools;
     }
 
-    function getStrPoolImplementations(bytes4 _sig) external view override returns (address) {
-        return strPoolImplementations[_sig];
+    function getPoolInvokers(bytes4 _sig) external view override returns (address) {
+        return poolInvokers[_sig];
     }
 }

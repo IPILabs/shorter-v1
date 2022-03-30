@@ -2,14 +2,8 @@
 pragma solidity 0.6.12;
 
 import "../proxy/TitanProxy.sol";
-import "../storage/PoolStorage.sol";
+import "../storage/PoolStateStorage.sol";
 
-contract PoolGuardian is TitanProxy, PoolStorage {
-    constructor(
-        address _SAVIOR,
-        address _implementation,
-        address _shorterBone
-    ) public TitanProxy(_SAVIOR, _implementation) {
-        shorterBone = IShorterBone(_shorterBone);
-    }
+contract PoolGuardian is TitanProxy, PoolStateStorage {
+    constructor(address _SAVIOR, address _implementationContract) public TitanProxy(_SAVIOR, _implementationContract) {}
 }

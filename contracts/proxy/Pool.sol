@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
 
-// import "../proxy/TitanProxy.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "../criteria/Affinity.sol";
-import "../storage/StrPoolStorage.sol";
+import "../criteria/ChainSchema.sol";
+import "../storage/PoolStorage.sol";
 
-contract StrPool is Affinity, Pausable, StrPoolStorage {
+contract Pool is ChainSchema, PoolStorage {
     constructor(
         address _SAVIOR,
         address _shorterBone,
         address _poolGuardian
-    ) public Affinity(_SAVIOR) {
+    ) public ChainSchema(_SAVIOR) {
         shorterBone = IShorterBone(_shorterBone);
         poolGuardian = IPoolGuardian(_poolGuardian);
     }
 
     fallback() external payable {
-        address implementation = poolGuardian.getStrPoolImplementations(msg.sig);
+        address implementation = poolGuardian.getPoolInvokers(msg.sig);
 
         assembly {
             // Copy msg.data. We take full control of memory in this inline assembly

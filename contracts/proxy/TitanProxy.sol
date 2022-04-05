@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
 
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "../criteria/Affinity.sol";
 import "../criteria/ChainSchema.sol";
 import "./UpgradeabilityProxy.sol";
 
 /// @notice Top level proxy for delegate
-contract TitanProxy is Affinity, ChainSchema, Pausable, UpgradeabilityProxy {
-    constructor(address _SAVIOR, address implementationContract) public Affinity(_SAVIOR) UpgradeabilityProxy(implementationContract) {}
+contract TitanProxy is ChainSchema, UpgradeabilityProxy {
+    event Upgraded(uint256 indexed version, address indexed implementation);
+
+    constructor(address _SAVIOR, address implementationContract) public ChainSchema(_SAVIOR) UpgradeabilityProxy(implementationContract) {}
 
     function version() public view returns (uint256) {
         return _version();
@@ -18,19 +18,12 @@ contract TitanProxy is Affinity, ChainSchema, Pausable, UpgradeabilityProxy {
         return _implementation();
     }
 
-    function upgradeTo(uint256 newVersion, address newImplementation) public isManager {
+    function upgradeTo(uint256 newVersion, address newImplementation) external isSavior {
         _upgradeTo(newVersion, newImplementation);
+        emit Upgraded(newVersion, newImplementation);
     }
 
-    function setPaused() public isManager {
-        _pause();
-    }
-
-    function setUnPaused() public isManager {
-        _unpause();
-    }
-
-    function setSecondsPerBlock(uint256 newSecondsPerBlock) public isManager {
+    function setSecondsPerBlock(uint256 newSecondsPerBlock) external isKeeper {
         _secondsPerBlock = newSecondsPerBlock;
     }
 

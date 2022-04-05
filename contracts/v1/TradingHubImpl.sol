@@ -2,26 +2,24 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "./Rescuable.sol";
 import "../libraries/Path.sol";
 import "../interfaces/v1/IPoolGuardian.sol";
 import "../interfaces/v1/ITradingHub.sol";
-import "../interfaces/IStrPool.sol";
+import "../interfaces/IPool.sol";
 import "../interfaces/IDexCenter.sol";
 import "../criteria/ChainSchema.sol";
 import "../storage/AresStorage.sol";
 import "../util/BoringMath.sol";
 
 /// @notice Hub for dealing with orders, positions and traders
-contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradingHub {
+contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
     using BoringMath for uint256;
     using Path for bytes;
 
-    constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}
+    constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
     modifier onlySwapRouter(address _swapRouter) {
-        require(dexCenter.getSwapRouterWhiteList(_swapRouter), "TradingHub: Invalid SwapRouter");
+        require(dexCenter.entitledSwapRouters(_swapRouter), "TradingHub: Invalid SwapRouter");
         _;
     }
 
@@ -34,10 +32,11 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
         uint256 poolId,
         uint256 amount,
         uint256 amountOutMin,
-        address swapRouter,
         bytes memory path
-    ) external whenNotPaused onlyEOA onlySwapRouter(swapRouter) {
-        PoolInfo memory pool = getPoolInfo(poolId);
+    ) external whenNotPaused onlyEOA {
+        PoolInfo memory pool = _getPoolInfo(poolId);
+        (, address swapRouter, ) = shorterBone.getTokenInfo(address(pool.stakedToken));
+        require(dexCenter.entitledSwapRouters(swapRouter), "TradingHub sellShort: Invalid SwapRouter");
         require(path.getTokenIn() == address(pool.stakedToken), "TradingHub: Invalid tokenIn");
         require(path.getTokenOut() == address(pool.stableToken), "TradingHub: Invalid tokenOut");
         require(pool.stateFlag == IPoolGuardian.PoolStatus.RUNNING && pool.endBlock > block.number, "TradingHub: Expired pool");
@@ -55,17 +54,18 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
         } else {
             emit PositionIncreased(poolId, msg.sender, position, amount);
         }
-        IStrPool(pool.strToken).borrow(dexCenter.isSwapRouterV3(swapRouter), address(dexCenter), swapRouter, position, msg.sender, amount, amountOutMin, path);
+        IPool(pool.strToken).borrow(dexCenter.isSwapRouterV3(swapRouter), address(dexCenter), swapRouter, position, msg.sender, amount, amountOutMin, path);
     }
 
     function buyCover(
         uint256 poolId,
         uint256 amount,
         uint256 amountInMax,
-        address swapRouter,
         bytes memory path
     ) external whenNotPaused onlyEOA {
-        PoolInfo memory pool = getPoolInfo(poolId);
+        PoolInfo memory pool = _getPoolInfo(poolId);
+        (, address swapRouter, ) = shorterBone.getTokenInfo(address(pool.stakedToken));
+        require(dexCenter.entitledSwapRouters(swapRouter), "TradingHub buyCover: Invalid SwapRouter");
         bool isSwapRouterV3 = dexCenter.isSwapRouterV3(swapRouter);
         if (isSwapRouterV3) {
             require(path.getTokenIn() == address(pool.stakedToken), "TradingHub: Invalid tokenIn");
@@ -78,14 +78,14 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
         address position = _duplicatedOpenPosition(poolId, msg.sender);
         require(position != address(0), "TradingHub: Position not found");
 
-        bool isClosed = IStrPool(pool.strToken).repay(isSwapRouterV3, shorterBone.TetherToken() == address(pool.stableToken), address(dexCenter), swapRouter, position, msg.sender, amount, amountInMax, path);
+        bool isClosed = IPool(pool.strToken).repay(isSwapRouterV3, shorterBone.TetherToken() == address(pool.stableToken), address(dexCenter), swapRouter, position, msg.sender, amount, amountInMax, path);
 
         if (isClosed) {
             _updatePositionState(position, PositionState.CLOSED);
         }
 
-            emit PositionDecreased(poolId, msg.sender, position, amount);
-        }
+        emit PositionDecreased(poolId, msg.sender, position, amount);
+    }
 
     function getPositionInfo(address position)
         external
@@ -109,16 +109,16 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
         }
     }
 
-    function initialize(address _shorterBone, address _poolGuardian) external isKeeper {
+    function initialize(address _shorterBone, address _poolGuardian) external isSavior {
         require(!_initialized, "TradingHub: Already initialized");
         shorterBone = IShorterBone(_shorterBone);
         poolGuardian = IPoolGuardian(_poolGuardian);
         _initialized = true;
     }
 
-    function getPoolInfo(uint256 poolId) internal view returns (PoolInfo memory poolInfo) {
+    function _getPoolInfo(uint256 poolId) internal view returns (PoolInfo memory poolInfo) {
         (, address strToken, ) = poolGuardian.getPoolInfo(poolId);
-        (address creator, address stakedToken, address stableToken, , uint256 leverage, uint256 durationDays, uint256 startBlock, uint256 endBlock, uint256 id, uint256 stakedTokenDecimals, uint256 stableTokenDecimals, IPoolGuardian.PoolStatus stateFlag) = IStrPool(strToken).getInfo();
+        (address creator, address stakedToken, address stableToken, , uint256 leverage, uint256 durationDays, uint256 startBlock, uint256 endBlock, uint256 id, uint256 stakedTokenDecimals, uint256 stableTokenDecimals, IPoolGuardian.PoolStatus stateFlag) = IPool(strToken).getInfo();
         poolInfo = PoolInfo({
             creator: creator,
             stakedToken: ISRC20(stakedToken),
@@ -140,7 +140,7 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
             PositionInfo storage positionInfo = positionInfoMap[positions[i]];
             require(positionInfo.positionState == PositionState.OPEN, "TradingHub: Not a open position");
 
-            PositionState positionState = IStrPool(positionInfo.strToken).updatePositionToAuctionHall(positions[i]);
+            PositionState positionState = IPool(positionInfo.strToken).updatePositionToAuctionHall(positions[i]);
             if (positionState == PositionState.CLOSING || positionState == PositionState.OVERDRAWN) {
                 _updatePositionState(positions[i], positionState);
             }
@@ -160,9 +160,9 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
 
     function setBatchClosePositions(ITradingHub.BatchPositionInfo[] memory batchPositionInfos) external override onlyGrabber {
         for (uint256 i = 0; i < batchPositionInfos.length; i++) {
-            (, address strToken, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(batchPositionInfos[i].poolId);
-        require(poolStatus == IPoolGuardian.PoolStatus.RUNNING, "TradingHub: Pool is not running");
-            (, , , , , , , uint256 endBlock, , , , ) = IStrPool(strToken).getInfo();
+            (, address strPool, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(batchPositionInfos[i].poolId);
+            require(poolStatus == IPoolGuardian.PoolStatus.RUNNING, "TradingHub: Pool is not running");
+            (, , , , , , , uint256 endBlock, , , , ) = IPool(strPool).getInfo();
             require(block.number > endBlock, "TradingHub: Pool is not Liquidating");
             for (uint256 j = 0; j < batchPositionInfos[i].positions.length; j++) {
                 PositionInfo storage positionInfo = positionInfoMap[batchPositionInfos[i].positions[j]];
@@ -170,22 +170,22 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
                 _updatePositionState(batchPositionInfos[i].positions[j], PositionState.CLOSING);
             }
             if (batchPositionInfos[i].positions.length > 0) {
-                IStrPool(strToken).batchUpdateFundingFee(batchPositionInfos[i].positions);
-        }
-            if (existPositionState(batchPositionInfos[i].poolId, ITradingHub.PositionState.OPEN)) break;
-            if (existPositionState(batchPositionInfos[i].poolId, ITradingHub.PositionState.CLOSING) || existPositionState(batchPositionInfos[i].poolId, ITradingHub.PositionState.OVERDRAWN)) {
+                IPool(strPool).batchUpdateFundingFee(batchPositionInfos[i].positions);
+            }
+            if (_existPositionState(batchPositionInfos[i].poolId, ITradingHub.PositionState.OPEN)) break;
+            if (_existPositionState(batchPositionInfos[i].poolId, ITradingHub.PositionState.CLOSING) || _existPositionState(batchPositionInfos[i].poolId, ITradingHub.PositionState.OVERDRAWN)) {
                 poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.LIQUIDATING);
             } else {
                 poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.ENDED);
-        }
+            }
         }
     }
 
     function delivery(ITradingHub.BatchPositionInfo[] memory batchPositionInfos) external override onlyGrabber {
         for (uint256 i = 0; i < batchPositionInfos.length; i++) {
             (, address strToken, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(batchPositionInfos[i].poolId);
-        require(poolStatus == IPoolGuardian.PoolStatus.LIQUIDATING, "TradingHub: Pool is not liquidating");
-            (, , , , , , , uint256 endBlock, , , , ) = IStrPool(strToken).getInfo();
+            require(poolStatus == IPoolGuardian.PoolStatus.LIQUIDATING, "TradingHub: Pool is not liquidating");
+            (, , , , , , , uint256 endBlock, , , , ) = IPool(strToken).getInfo();
             require(block.number > endBlock.add(1000), "TradingHub: Pool is not delivery");
             for (uint256 j = 0; j < batchPositionInfos[i].positions.length; j++) {
                 PositionInfo storage positionInfo = positionInfoMap[batchPositionInfos[i].positions[j]];
@@ -193,9 +193,9 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
                 _updatePositionState(batchPositionInfos[i].positions[j], PositionState.CLOSED);
             }
             if (batchPositionInfos[i].positions.length > 0) {
-                IStrPool(strToken).delivery(true);
-        }
-            if (existPositionState(batchPositionInfos[i].poolId, ITradingHub.PositionState.OVERDRAWN)) break;
+                IPool(strToken).delivery(true);
+            }
+            if (_existPositionState(batchPositionInfos[i].poolId, ITradingHub.PositionState.OVERDRAWN)) break;
             poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.ENDED);
         }
     }
@@ -229,7 +229,7 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
         positionInfoMap[position].positionState = positionState;
     }
 
-    function existPositionState(uint256 poolId, ITradingHub.PositionState positionState) internal view returns (bool) {
+    function _existPositionState(uint256 poolId, ITradingHub.PositionState positionState) internal view returns (bool) {
         uint256 poolPosSize = poolPositionSize[poolId];
         for (uint256 i = 0; i < poolPosSize; i++) {
             if (positionInfoMap[poolPositions[poolId][i]].positionState == positionState) {
@@ -239,7 +239,7 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
         return false;
     }
 
-    function getPositionsByAccount(address account, PositionState positionState) public view returns (address[] memory) {
+    function getPositionsByAccount(address account, PositionState positionState) external view returns (address[] memory) {
         uint256 poolPosSize = userPositionSize[account];
         address[] memory posContainer = new address[](poolPosSize);
 
@@ -258,7 +258,7 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
         return resPositions;
     }
 
-    function getPositionsByPoolId(uint256 poolId, PositionState positionState) public view override returns (address[] memory) {
+    function getPositionsByPoolId(uint256 poolId, PositionState positionState) external view override returns (address[] memory) {
         uint256 poolPosSize = poolPositionSize[poolId];
         address[] memory posContainer = new address[](poolPosSize);
 
@@ -277,7 +277,7 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
         return resPositions;
     }
 
-    function getPositionsByState(PositionState positionState) public view override returns (address[] memory) {
+    function getPositionsByState(PositionState positionState) external view override returns (address[] memory) {
         address[] memory posContainer = new address[](allPositionSize);
 
         uint256 resPosCount;
@@ -295,15 +295,18 @@ contract TradingHubImpl is Rescuable, ChainSchema, Pausable, AresStorage, ITradi
         return resPositions;
     }
 
-    function setDexCenter(address newDexCenter) public isManager {
+    function setDexCenter(address newDexCenter) external isKeeper {
+        require(newDexCenter != address(0), "TradingHub: NewDexCenter is zero address");
         dexCenter = IDexCenter(newDexCenter);
     }
 
-    function setPriceOracle(address newPriceOracle) public isManager {
+    function setPriceOracle(address newPriceOracle) external isKeeper {
+        require(newPriceOracle != address(0), "TradingHub: NewPriceOracle is zero address");
         priceOracle = IPriceOracle(newPriceOracle);
     }
 
-    function setPoolRewardModel(address newPoolRewardModel) public isManager {
+    function setPoolRewardModel(address newPoolRewardModel) external isKeeper {
+        require(newPoolRewardModel != address(0), "TradingHub: NewPoolRewardModel is zero address");
         poolRewardModel = IPoolRewardModel(newPoolRewardModel);
     }
 }

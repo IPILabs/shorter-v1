@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
 
-import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "../libraries/PermitLibrary.sol";
 import "../criteria/ChainSchema.sol";
 import "../storage/TreasuryStorage.sol";
-import "./Rescuable.sol";
 import "../util/BoringMath.sol";
 
-contract TreasuryImpl is Rescuable, ChainSchema, Pausable, TreasuryStorage {
+contract TreasuryImpl is ChainSchema, TreasuryStorage {
     using EnumerableSet for EnumerableSet.AddressSet;
     using BoringMath for uint256;
 
@@ -19,9 +17,13 @@ contract TreasuryImpl is Rescuable, ChainSchema, Pausable, TreasuryStorage {
     // SafeTx(address to,uint256 value,bytes data,uint8 operation,uint256 nonce)
     bytes32 internal constant SAFE_TX_TYPEHASH = 0x3317c908a134e5c2510760347e7f23b965536b042f3c71282a3d92e04a7b29f5;
 
-    constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}
+    constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
-    function initialize(address[] calldata _owners, uint256 _threshold) public isKeeper {
+    function initialize(
+        address _shorterBone,
+        address[] calldata _owners,
+        uint256 _threshold
+    ) external isSavior {
         require(!_initialized, "Treasury: Already initialized");
         require(_threshold > 0, "Treasury: Invalid threshold");
         for (uint256 i = 0; i < _owners.length; i++) {
@@ -29,6 +31,7 @@ contract TreasuryImpl is Rescuable, ChainSchema, Pausable, TreasuryStorage {
         }
 
         threshold = _threshold;
+        shorterBone = IShorterBone(_shorterBone);
         _initialized = true;
     }
 
@@ -52,10 +55,10 @@ contract TreasuryImpl is Rescuable, ChainSchema, Pausable, TreasuryStorage {
             bytes memory txHashData = encodeTransactionData(to, value, data, operation, nonce);
             nonce++;
             txHash = keccak256(txHashData);
-            checkSignatures(txHash, signatures);
+            _checkSignatures(txHash, signatures);
         }
 
-        success = execute(to, value, data, operation);
+        success = _execute(to, value, data, operation);
 
         if (!success) {
             revert("Treasury: Execute Exception");
@@ -94,7 +97,7 @@ contract TreasuryImpl is Rescuable, ChainSchema, Pausable, TreasuryStorage {
         uint256 _nonce
     ) public view returns (bytes memory) {
         bytes32 safeTxHash = keccak256(abi.encode(SAFE_TX_TYPEHASH, to, value, keccak256(data), operation, _nonce));
-        return abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), safeTxHash);
+        return abi.encodePacked(bytes1(0x19), bytes1(0x01), _domainSeparator(), safeTxHash);
     }
 
     /// @dev Returns hash to be signed by owners.
@@ -114,7 +117,7 @@ contract TreasuryImpl is Rescuable, ChainSchema, Pausable, TreasuryStorage {
         return keccak256(encodeTransactionData(to, value, data, operation, _nonce));
     }
 
-    function execute(
+    function _execute(
         address to,
         uint256 value,
         bytes memory data,
@@ -133,7 +136,7 @@ contract TreasuryImpl is Rescuable, ChainSchema, Pausable, TreasuryStorage {
         }
     }
 
-    function domainSeparator() internal view returns (bytes32) {
+    function _domainSeparator() internal view returns (bytes32) {
         return keccak256(abi.encode(DOMAIN_SEPARATOR_TYPEHASH, getChainId(), this));
     }
 
@@ -146,12 +149,11 @@ contract TreasuryImpl is Rescuable, ChainSchema, Pausable, TreasuryStorage {
      * @param dataHash Hash of the data (could be either a message hash or transaction hash)
      * @param signatures Signature data that should be verified. Can be ECDSA signature, contract signature (EIP-1271) or approved hash.
      */
-    function checkSignatures(bytes32 dataHash, bytes memory signatures) internal view {
-        uint256 _threshold = threshold;
-        require(signatures.length >= _threshold.mul(65), "Treasury: Signatures too short");
+    function _checkSignatures(bytes32 dataHash, bytes memory signatures) internal view {
+        require(signatures.length >= threshold.mul(65), "Treasury: Signatures too short");
         address currentOwner;
         address lastOwner;
-        for (uint256 i = 0; i < _threshold; i++) {
+        for (uint256 i = 0; i < threshold; i++) {
             currentOwner = PermitLibrary.getSigner(signatures, i, dataHash);
             require(currentOwner > lastOwner && owners.contains(currentOwner) && currentOwner != address(0), "Treasury: Invalid owner");
             lastOwner = currentOwner;

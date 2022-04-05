@@ -5,8 +5,6 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Proxy} from "./Proxy.sol";
 
 contract UpgradeabilityProxy is Proxy {
-    event Upgraded(uint256 indexed version, address indexed implementation);
-
     bytes32 internal constant IMPLEMENTATION_SLOT = 0xb4cff3ccade8876c60e81b90f014ea636f99d530646ec67090e1cc8a04636f38;
     bytes32 internal constant VERSION_SLOT = 0xf62412ce1bd823aa31864380419f787378380edf34602844461eeadf8416d534;
 
@@ -37,8 +35,6 @@ contract UpgradeabilityProxy is Proxy {
 
         _setImplementation(newImplementation);
         _setVersion(newVersion);
-
-        emit Upgraded(newVersion, newImplementation);
     }
 
     function _setImplementation(address newImplementation) internal {

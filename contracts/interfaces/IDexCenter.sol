@@ -21,7 +21,7 @@ interface IDexCenter {
         bytes path;
     }
 
-    function getSwapRouterWhiteList(address swapRouter) external view returns (bool);
+    function entitledSwapRouters(address swapRouter) external view returns (bool);
 
     function isSwapRouterV3(address swapRouter) external view returns (bool);
 

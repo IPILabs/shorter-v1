@@ -21,7 +21,7 @@ contract DexCenter is Affinity, IDexCenter {
     using SafeToken for ISRC20;
     using Path for bytes;
 
-    mapping(address => bool) public override getSwapRouterWhiteList;
+    mapping(address => bool) public override entitledSwapRouters;
     mapping(address => bool) public override isSwapRouterV3;
 
     constructor(address _SAVIOR) public Affinity(_SAVIOR) {}
@@ -35,13 +35,13 @@ contract DexCenter is Affinity, IDexCenter {
         uint256 tokenOutBal = tokenOut.balanceOf(params.to);
         uint256 allowance = tokenIn.allowance(address(this), params.swapRouter);
         if (allowance < params.amountIn) {
-            tokenIn.approve(params.swapRouter, params.amountIn.sub(allowance));
+            tokenIn.approve(params.swapRouter, params.amountIn);
         }
 
         if (params.isSwapRouterV3) {
-            usdAmount = exactInput(params.amountIn, params.amountOutMin, params.swapRouter, params.to, params.path);
+            usdAmount = _exactInput(params.amountIn, params.amountOutMin, params.swapRouter, params.to, params.path);
         } else {
-            usdAmount = swapExactTokensForTokens(params.amountIn, params.amountOutMin, params.swapRouter, params.to, _path);
+            usdAmount = _swapExactTokensForTokens(params.amountIn, params.amountOutMin, params.swapRouter, params.to, _path);
         }
 
         uint256 tokenInAft = tokenIn.balanceOf(address(this));
@@ -62,14 +62,14 @@ contract DexCenter is Affinity, IDexCenter {
             if (params.isTetherToken) {
                 _allowTetherToken(address(tokenIn), params.swapRouter, params.amountInMax);
             } else {
-                tokenIn.approve(params.swapRouter, params.amountInMax.sub(allowance));
+                tokenIn.approve(params.swapRouter, params.amountInMax);
             }
         }
 
         if (params.isSwapRouterV3) {
-            amountIn = exactOutput(params.amountOut, params.amountInMax, params.swapRouter, params.to, params.path);
+            amountIn = _exactOutput(params.amountOut, params.amountInMax, params.swapRouter, params.to, params.path);
         } else {
-            amountIn = swapTokensForExactTokens(params.amountOut, params.amountInMax, params.swapRouter, params.to, _path);
+            amountIn = _swapTokensForExactTokens(params.amountOut, params.amountInMax, params.swapRouter, params.to, _path);
         }
 
         uint256 tokenInAft = tokenIn.balanceOf(address(this));
@@ -80,7 +80,7 @@ contract DexCenter is Affinity, IDexCenter {
         }
     }
 
-    function swapExactTokensForTokens(
+    function _swapExactTokensForTokens(
         uint256 amountIn,
         uint256 amountOutMin,
         address swapRouter,
@@ -91,7 +91,7 @@ contract DexCenter is Affinity, IDexCenter {
         amountOut = amounts[amounts.length - 1];
     }
 
-    function swapTokensForExactTokens(
+    function _swapTokensForExactTokens(
         uint256 amountOut,
         uint256 amountInMax,
         address swapRouter,
@@ -102,7 +102,7 @@ contract DexCenter is Affinity, IDexCenter {
         amountIn = amounts[0];
     }
 
-    function exactInput(
+    function _exactInput(
         uint256 amountIn,
         uint256 amountOutMin,
         address swapRouter,
@@ -112,7 +112,7 @@ contract DexCenter is Affinity, IDexCenter {
         amountOut = IV3SwapRouter(swapRouter).exactInput(IV3SwapRouter.ExactInputParams({path: path, recipient: to, amountIn: amountIn, amountOutMinimum: amountOutMin}));
     }
 
-    function exactOutput(
+    function _exactOutput(
         uint256 amountOut,
         uint256 amountInMax,
         address swapRouter,
@@ -167,12 +167,21 @@ contract DexCenter is Affinity, IDexCenter {
         }
     }
 
-    function setSwapRouterWhiteList(address _swapRouter, bool _flag) external isManager {
-        getSwapRouterWhiteList[_swapRouter] = _flag;
+    function addEntitledSwapRouter(address[] memory newSwapRouters) external isKeeper {
+        for (uint256 i = 0; i < newSwapRouters.length; i++) {
+            entitledSwapRouters[newSwapRouters[i]] = true;
+        }
     }
 
-    function addSwapRouterWhiteList(address _swapRouter, bool _isSwapRouterV3) external isManager {
-        getSwapRouterWhiteList[_swapRouter] = true;
-        isSwapRouterV3[_swapRouter] = _isSwapRouterV3;
+    function removeEntitledSwapRouter(address[] memory _swapRouters) external isKeeper {
+        for (uint256 i = 0; i < _swapRouters.length; i++) {
+            entitledSwapRouters[_swapRouters[i]] = false;
+        }
+    }
+
+    function updateSwapRouterV3(address[] memory _swapRouters, bool _isSwapRouterV3) external isKeeper {
+        for (uint256 i = 0; i < _swapRouters.length; i++) {
+            isSwapRouterV3[_swapRouters[i]] = _isSwapRouterV3;
+        }
     }
 }

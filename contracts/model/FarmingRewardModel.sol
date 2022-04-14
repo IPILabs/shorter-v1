@@ -7,9 +7,7 @@ import "../storage/model/FarmingRewardModelStorage.sol";
 contract FarmingRewardModel is TitanProxy, FarmingRewardModelStorage {
     constructor(
         address _SAVIOR,
-        address _implementation,
-        address _shorterBone
-    ) public TitanProxy(_SAVIOR, _implementation) {
-        shorterBone = IShorterBone(_shorterBone);
+        address _implementationContract
+    ) public TitanProxy(_SAVIOR, _implementationContract) {
     }
 }

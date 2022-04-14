@@ -5,11 +5,5 @@ import "../proxy/TitanProxy.sol";
 import "../storage/model/InterestRateModelStorage.sol";
 
 contract InterestRateModel is TitanProxy, InterestRateModelStorage {
-    constructor(
-        address _SAVIOR,
-        address _implementation,
-        address _shorterBone
-    ) public TitanProxy(_SAVIOR, _implementation) {
-        shorterBone = IShorterBone(_shorterBone);
-    }
+    constructor(address _SAVIOR, address _implementationContract) public TitanProxy(_SAVIOR, _implementationContract) {}
 }

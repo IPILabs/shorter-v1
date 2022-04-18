@@ -5,6 +5,6 @@ import "./TitanCoreStorage.sol";
 import "./TokenStorage.sol";
 
 /// @notice Storage for IPISTR implementation
-contract PrometheusStorage is TitanCoreStorage, TokenStorage {
+contract PrometheusStorage is TokenStorage {
 
 }

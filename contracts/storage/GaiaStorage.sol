@@ -5,6 +5,6 @@ import "./TitanCoreStorage.sol";
 import "./VaultStorage.sol";
 
 /// @notice Storage for VaultButler implementation
-contract GaiaStorage is TitanCoreStorage, VaultStorage {
+contract GaiaStorage is VaultStorage {
 
 }

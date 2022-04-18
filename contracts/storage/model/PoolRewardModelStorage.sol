@@ -19,11 +19,11 @@ contract PoolRewardModelStorage is TitanCoreStorage {
     }
 
     struct RewardDebtInfo {
-        uint256 poolIpiStrRewardDebt;
+        uint256 poolIpistrRewardDebt;
         uint256 poolStableRewardDebt;
-        uint256 voterIpiStrRewardDebt;
+        uint256 voterIpistrRewardDebt;
         uint256 voterStableRewardDebt;
-        uint256 creatorIpiStrRewardDebt;
+        uint256 creatorIpistrRewardDebt;
         uint256 creatorStableRewardDebt;
     }
 
@@ -52,8 +52,8 @@ contract PoolRewardModelStorage is TitanCoreStorage {
     // poolId => CreatorRewardDebt
     mapping(uint256 => uint256) public CreatorRewardDebt;
 
-    // poolId => totalIpiStrAmount
-    mapping(uint256 => uint256) public totalIpiStrAmount;
+    // poolId => totalIpistrAmount
+    mapping(uint256 => uint256) public totalIpistrAmount;
 
     mapping(uint256 => uint256) public totalTradingFees;
 

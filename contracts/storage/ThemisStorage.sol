@@ -5,6 +5,6 @@ import "./TitanCoreStorage.sol";
 import "./AuctionStorage.sol";
 
 /// @notice Storage for AuctionHall implementation
-contract ThemisStorage is TitanCoreStorage, AuctionStorage {
+contract ThemisStorage is AuctionStorage {
 
 }

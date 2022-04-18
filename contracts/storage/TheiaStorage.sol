@@ -2,9 +2,9 @@
 pragma solidity 0.6.12;
 
 import "./TitanCoreStorage.sol";
-import "./PoolStorage.sol";
+import "./PoolStateStorage.sol";
 
 /// @notice Storage for PoolGuardian implementation
-contract TheiaStorage is TitanCoreStorage, PoolStorage {
+contract TheiaStorage is PoolStateStorage {
 
 }

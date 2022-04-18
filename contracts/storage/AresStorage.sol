@@ -5,6 +5,6 @@ import "./TitanCoreStorage.sol";
 import "./TradingStorage.sol";
 
 /// @notice Storage for TradingHub implementation
-contract AresStorage is TitanCoreStorage, TradingStorage {
+contract AresStorage is TradingStorage {
 
 }

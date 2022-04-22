@@ -6,7 +6,7 @@ interface IPriceOracle {
     enum PriceOracleMode {
         DEX_MODE,
         CHAINLINK_MODE,
-        FEED_NODE
+        FEED_MODE
     }
 
     function getLatestMixinPrice(address tokenAddr) external view returns (uint256 tokenPrice, uint256 decimals);

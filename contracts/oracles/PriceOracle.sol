@@ -45,11 +45,11 @@ contract PriceOracle is IPriceOracle, Affinity {
 
     function getTokenPrice(address tokenAddr) public view override returns (uint256 tokenPrice) {
         if (priceOracleModeMap[tokenAddr] == PriceOracleMode.CHAINLINK_MODE) {
-            tokenPrice = getChainLinkPrice(tokenAddr);
+            tokenPrice = _getChainLinkPrice(tokenAddr);
         } else if (priceOracleModeMap[tokenAddr] == PriceOracleMode.DEX_MODE) {
-            tokenPrice = getDexPrice(tokenAddr);
-        } else if (priceOracleModeMap[tokenAddr] == PriceOracleMode.FEED_NODE) {
-            tokenPrice = getLatestPrice(tokenAddr);
+            tokenPrice = _getDexPrice(tokenAddr);
+        } else if (priceOracleModeMap[tokenAddr] == PriceOracleMode.FEED_MODE) {
+            tokenPrice = _getLatestPrice(tokenAddr);
         }
     }
 
@@ -58,17 +58,17 @@ contract PriceOracle is IPriceOracle, Affinity {
         prices[tokenAddr] = price;
     }
 
-    function setSpareFeedContract(address tokenAddr, address feedContract) external isManager {
+    function setSpareFeedContract(address tokenAddr, address feedContract) external isKeeper {
         spareFeedContracts[tokenAddr] = feedContract;
     }
 
-    function setSpareFeedContracts(address[] memory tokenAddrs, address[] memory feedContracts) external isManager {
+    function setSpareFeedContracts(address[] memory tokenAddrs, address[] memory feedContracts) external isKeeper {
         for (uint256 i = 0; i < tokenAddrs.length; i++) {
             spareFeedContracts[tokenAddrs[i]] = feedContracts[i];
         }
     }
 
-    function setBaseTokenContract(address newBaseToken) external isManager {
+    function setBaseTokenContract(address newBaseToken) external isKeeper {
         stableTokenAddr = newBaseToken;
     }
 
@@ -94,11 +94,11 @@ contract PriceOracle is IPriceOracle, Affinity {
         shorterBone = _shorterBone;
     }
 
-    function getLatestPrice(address tokenAddr) internal view returns (uint256 tokenPirce) {
+    function _getLatestPrice(address tokenAddr) internal view returns (uint256 tokenPirce) {
         return prices[tokenAddr];
     }
 
-    function getChainLinkPrice(address tokenAddr) internal view returns (uint256 tokenPirce) {
+    function _getChainLinkPrice(address tokenAddr) internal view returns (uint256 tokenPirce) {
         require(spareFeedContracts[tokenAddr] != address(0), "PriceOracle: Feed contract is zero");
         AggregatorV3Interface feedContract = AggregatorV3Interface(spareFeedContracts[tokenAddr]);
         uint256 decimals = uint256(feedContract.decimals());
@@ -106,7 +106,7 @@ contract PriceOracle is IPriceOracle, Affinity {
         tokenPirce = uint256(_tokenPrice).mul(10**18).div(10**decimals);
     }
 
-    function getDexPrice(address tokenAddr) public view returns (uint256 tokenPirce) {
+    function _getDexPrice(address tokenAddr) internal view returns (uint256 tokenPirce) {
         (address swapRouter, address[] memory path, uint24[] memory fees) = getAutoRouter(tokenAddr);
         if (dexCenter.isSwapRouterV3(swapRouter)) {
             tokenPirce = dexCenter.getV3Price(swapRouter, path, fees);

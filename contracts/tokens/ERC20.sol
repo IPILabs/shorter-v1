@@ -36,7 +36,7 @@ contract ERC20 is ISRC20 {
     /**
      * @dev Returns the name of the token.
      */
-    function name() public view override returns (string memory) {
+    function name() external view override returns (string memory) {
         return _name;
     }
 
@@ -44,7 +44,7 @@ contract ERC20 is ISRC20 {
      * @dev Returns the symbol of the token, usually a shorter version of the
      * name.
      */
-    function symbol() public view override returns (string memory) {
+    function symbol() external view override returns (string memory) {
         return _symbol;
     }
 
@@ -53,7 +53,7 @@ contract ERC20 is ISRC20 {
      * For example, if `decimals` equals `2`, a balance of `505` tokens should
      * be displayed to a user as `5,05` (`505 / 10 ** 2`).
      */
-    function decimals() public view override returns (uint8) {
+    function decimals() external view override returns (uint8) {
         return _decimals;
     }
 
@@ -88,7 +88,7 @@ contract ERC20 is ISRC20 {
     /// @param spender Address of the party that can draw from msg.sender's account.
     /// @param amount The maximum collective amount that `spender` can draw.
     /// @return (bool) Returns True if approved.
-    function approve(address spender, uint256 amount) public override returns (bool) {
+    function approve(address spender, uint256 amount) external override returns (bool) {
         allowance[msg.sender][spender] = amount;
         emit Approval(msg.sender, spender, amount);
         return true;
@@ -97,7 +97,7 @@ contract ERC20 is ISRC20 {
     /**
      * @dev See {IERC20-totalSupply}.
      */
-    function totalSupply() public view override returns (uint256) {
+    function totalSupply() external view override returns (uint256) {
         return _totalSupply;
     }
 

@@ -1,22 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
 
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/utils/EnumerableSet.sol";
-import "../../libraries/AllyLibrary.sol";
-import "../../interfaces/IShorterBone.sol";
 import "../../interfaces/v1/model/IPoolRewardModel.sol";
-import "../../interfaces/IStrPool.sol";
-import "../../criteria/Affinity.sol";
+import "../../interfaces/IPool.sol";
 import "../../criteria/ChainSchema.sol";
 import "../../storage/model/PoolRewardModelStorage.sol";
 import "../../util/BoringMath.sol";
-import "../Rescuable.sol";
 
-contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardModelStorage, IPoolRewardModel {
+contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolRewardModel {
     using BoringMath for uint256;
 
-    constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}
+    constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
     function harvest(
         address user,
@@ -26,31 +20,31 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
     ) external override whenNotPaused returns (uint256 rewards) {
         bool isAccount = user == msg.sender;
         if (!isAccount) {
-            require(msg.sender == farming, "PoolRewardModel: Caller is not Farming");
+            require(msg.sender == farming, "PoolReward: Caller is not Farming");
         }
 
         for (uint256 i = 0; i < stakedPools.length; i++) {
             rewards = rewards.add(pendingPoolReward(user, stakedPools[i]));
-            updatePool(stakedPools[i]);
+            _updatePool(stakedPools[i]);
 
             address strPool = getStrPool(stakedPools[i]);
-            updatePoolRewardDetail(user, stakedPools[i], ISRC20(strPool).balanceOf(user));
+            _updatePoolRewardDetail(user, stakedPools[i], ISRC20(strPool).balanceOf(user));
         }
 
         for (uint256 i = 0; i < createPools.length; i++) {
             (uint256 _creatorRewards, uint256 _creatorRewards0, uint256 _creatorRewards1) = pendingCreatorRewards(user, createPools[i]);
             rewards = rewards.add(_creatorRewards);
 
-            updatePool(createPools[i]);
-            updateCreateRewardDetail(user, createPools[i], _creatorRewards0, _creatorRewards1);
+            _updatePool(createPools[i]);
+            _updateCreateRewardDetail(user, createPools[i], _creatorRewards0, _creatorRewards1);
         }
 
         for (uint256 i = 0; i < votePools.length; i++) {
             (uint256 _voteRewards, uint256 _voteRewards0, uint256 _voteRewards1) = pendingVoteRewards(user, votePools[i]);
             rewards = rewards.add(_voteRewards);
 
-            updatePool(votePools[i]);
-            updateVoteRewardDetail(user, votePools[i], _voteRewards0, _voteRewards1);
+            _updatePool(votePools[i]);
+            _updateVoteRewardDetail(user, votePools[i], _voteRewards0, _voteRewards1);
         }
 
         if (isAccount) {
@@ -64,11 +58,11 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
         uint256 amount
     ) external override {
         address strPool = getStrPool(poolId);
-        require(msg.sender == strPool, "PoolRewardModel: Caller is not the StrPool");
+        require(msg.sender == strPool, "PoolReward: Caller is not the Pool");
         uint256 _rewards = pendingPoolReward(user, poolId);
 
-        updatePool(poolId);
-        updatePoolRewardDetail(user, poolId, amount);
+        _updatePool(poolId);
+        _updatePoolRewardDetail(user, poolId, amount);
 
         if (_rewards > 0) {
             shorterBone.mintByAlly(AllyLibrary.POOL_REWARD, user, _rewards);
@@ -88,7 +82,7 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
             uint256[] memory votePools
         )
     {
-        uint256[] memory poodIds = getPools();
+        uint256[] memory poodIds = _getPools();
         (stakedRewards, stakedPools) = _pendingPoolReward(user, poodIds);
         (creatorRewards, createPools) = _pendingCreateReward(user, poodIds);
         (voteRewards, votePools) = _pendingVoteReward(user, poodIds);
@@ -161,9 +155,9 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
             return 0;
         }
 
-        (, , , , , , , uint256 endBlock, , , uint256 stableTokenDecimals, ) = IStrPool(strPool).getInfo();
+        (, , , , , , , uint256 endBlock, , , uint256 stableTokenDecimals, ) = IPool(strPool).getInfo();
 
-        uint256 stablePoolReward = (IStrPool(strPool).totalTradingFee().sub(totalTradingFees[poolId])).mul(10**(uint256(18).sub(stableTokenDecimals)));
+        uint256 stablePoolReward = (IPool(strPool).totalTradingFee().sub(totalTradingFees[poolId])).mul(10**(uint256(18).sub(stableTokenDecimals)));
         uint256 accIpistrPerShare = pool.accIPISTRPerShare.add(_totalPendingReward(poolId, endBlock, strPool).div(_poolStakedAmount));
         uint256 accStablePerShare = pool.accStablePerShare.add(stablePoolReward.mul(IPISTR_DECIMAL_SCALER).div(_poolStakedAmount));
 
@@ -175,7 +169,7 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
         currentPrice = currentPrice.mul(10**(uint256(18).sub(tokenDecimals)));
         pendingTradingRewards = pendingTradingRewards.mul(1e18).mul(2).div(currentPrice).div(5);
 
-        rewards = _userStakedAmount.mul(accIpistrPerShare).div(IPISTR_DECIMAL_SCALER).sub(rewardDebt.poolIpiStrRewardDebt);
+        rewards = _userStakedAmount.mul(accIpistrPerShare).div(IPISTR_DECIMAL_SCALER).sub(rewardDebt.poolIpistrRewardDebt);
         rewards = rewards.add(pendingTradingRewards);
     }
 
@@ -189,16 +183,16 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
         )
     {
         address strPool = getStrPool(poolId);
-        (address creator, , , , , , , uint256 endBlock, , , uint256 stableTokenDecimals, IPoolGuardian.PoolStatus stateFlag) = IStrPool(strPool).getInfo();
+        (address creator, , , , , , , uint256 endBlock, , , uint256 stableTokenDecimals, IPoolGuardian.PoolStatus stateFlag) = IPool(strPool).getInfo();
         if (user != creator || stateFlag == IPoolGuardian.PoolStatus.GENESIS) {
             return (0, 0, 0);
         }
 
-        uint256 ipistrPoolReward = (_totalPendingReward(poolId, endBlock, strPool).div(IPISTR_DECIMAL_SCALER)).add(totalIpiStrAmount[poolId]);
-        uint256 stablePoolReward = IStrPool(strPool).totalTradingFee().mul(10**(uint256(18).sub(stableTokenDecimals)));
+        uint256 ipistrPoolReward = (_totalPendingReward(poolId, endBlock, strPool).div(IPISTR_DECIMAL_SCALER)).add(totalIpistrAmount[poolId]);
+        uint256 stablePoolReward = IPool(strPool).totalTradingFee().mul(10**(uint256(18).sub(stableTokenDecimals)));
 
         RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
-        rewards0 = ipistrPoolReward.mul(3).div(100) > rewardDebt.creatorIpiStrRewardDebt ? (ipistrPoolReward.mul(3).div(100)).sub(rewardDebt.creatorIpiStrRewardDebt) : 0;
+        rewards0 = ipistrPoolReward.mul(3).div(100) > rewardDebt.creatorIpistrRewardDebt ? (ipistrPoolReward.mul(3).div(100)).sub(rewardDebt.creatorIpistrRewardDebt) : 0;
         rewards1 = stablePoolReward.mul(3).div(100) > rewardDebt.creatorStableRewardDebt ? (stablePoolReward.mul(3).div(100)).sub(rewardDebt.creatorStableRewardDebt) : 0;
 
         (uint256 currentPrice, uint256 tokenDecimals) = priceOracle.getLatestMixinPrice(ipistrToken);
@@ -222,13 +216,13 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
         }
 
         address strPool = getStrPool(poolId);
-        (, , , , , , , uint256 endBlock, , , uint256 stableTokenDecimals, ) = IStrPool(strPool).getInfo();
+        (, , , , , , , uint256 endBlock, , , uint256 stableTokenDecimals, ) = IPool(strPool).getInfo();
 
-        uint256 ipistrPoolReward = (_totalPendingReward(poolId, endBlock, strPool).div(IPISTR_DECIMAL_SCALER)).add(totalIpiStrAmount[poolId]);
-        uint256 stablePoolReward = IStrPool(strPool).totalTradingFee().mul(10**(uint256(18).sub(stableTokenDecimals)));
+        uint256 ipistrPoolReward = (_totalPendingReward(poolId, endBlock, strPool).div(IPISTR_DECIMAL_SCALER)).add(totalIpistrAmount[poolId]);
+        uint256 stablePoolReward = IPool(strPool).totalTradingFee().mul(10**(uint256(18).sub(stableTokenDecimals)));
 
         RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
-        rewards0 = ipistrPoolReward.mul(voteShare).div(totalShare).div(200) > rewardDebt.voterIpiStrRewardDebt ? (ipistrPoolReward.mul(voteShare).div(totalShare).div(200)).sub(rewardDebt.voterIpiStrRewardDebt) : 0;
+        rewards0 = ipistrPoolReward.mul(voteShare).div(totalShare).div(200) > rewardDebt.voterIpistrRewardDebt ? (ipistrPoolReward.mul(voteShare).div(totalShare).div(200)).sub(rewardDebt.voterIpistrRewardDebt) : 0;
         rewards1 = stablePoolReward.mul(voteShare).div(totalShare).div(200) > rewardDebt.voterStableRewardDebt ? (stablePoolReward.mul(voteShare).div(totalShare).div(200)).sub(rewardDebt.voterStableRewardDebt) : 0;
 
         (uint256 currentPrice, uint256 tokenDecimals) = priceOracle.getLatestMixinPrice(ipistrToken);
@@ -257,7 +251,7 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
         }
     }
 
-    function updatePool(uint256 poolId) internal {
+    function _updatePool(uint256 poolId) internal {
         address strPool = getStrPool(poolId);
         PoolInfo storage pool = poolInfoMap[poolId];
 
@@ -267,57 +261,57 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
             return;
         }
 
-        (, , , , , , , uint256 endBlock, , , , ) = IStrPool(strPool).getInfo();
+        (, , , , , , , uint256 endBlock, , , , ) = IPool(strPool).getInfo();
         uint256 ipistrPoolReward = _totalPendingReward(poolId, endBlock, strPool);
-        uint256 stablePoolReward = IStrPool(strPool).totalTradingFee().sub(totalTradingFees[poolId]);
+        uint256 stablePoolReward = IPool(strPool).totalTradingFee().sub(totalTradingFees[poolId]);
 
-        totalIpiStrAmount[poolId] = totalIpiStrAmount[poolId].add(ipistrPoolReward.div(IPISTR_DECIMAL_SCALER));
-        totalTradingFees[poolId] = IStrPool(strPool).totalTradingFee();
+        totalIpistrAmount[poolId] = totalIpistrAmount[poolId].add(ipistrPoolReward.div(IPISTR_DECIMAL_SCALER));
+        totalTradingFees[poolId] = IPool(strPool).totalTradingFee();
 
         pool.accIPISTRPerShare = pool.accIPISTRPerShare.add(ipistrPoolReward.div(poolStakedAmount));
         pool.accStablePerShare = pool.accStablePerShare.add(stablePoolReward.mul(IPISTR_DECIMAL_SCALER).div(poolStakedAmount));
         pool.lastRewardBlock = block.number.to64();
     }
 
-    function updateCreateRewardDetail(
+    function _updateCreateRewardDetail(
         address user,
         uint256 poolId,
         uint256 rewards0,
         uint256 rewards1
     ) internal {
         RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
-        rewardDebt.creatorIpiStrRewardDebt = rewardDebt.creatorIpiStrRewardDebt.add(rewards0);
+        rewardDebt.creatorIpistrRewardDebt = rewardDebt.creatorIpistrRewardDebt.add(rewards0);
         rewardDebt.creatorStableRewardDebt = rewardDebt.creatorStableRewardDebt.add(rewards1);
     }
 
-    function updateVoteRewardDetail(
+    function _updateVoteRewardDetail(
         address user,
         uint256 poolId,
         uint256 rewards0,
         uint256 rewards1
     ) internal {
         RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
-        rewardDebt.voterIpiStrRewardDebt = rewardDebt.voterIpiStrRewardDebt.add(rewards0);
+        rewardDebt.voterIpistrRewardDebt = rewardDebt.voterIpistrRewardDebt.add(rewards0);
         rewardDebt.voterStableRewardDebt = rewardDebt.voterStableRewardDebt.add(rewards1);
     }
 
-    function updatePoolRewardDetail(
+    function _updatePoolRewardDetail(
         address user,
         uint256 poolId,
         uint256 amount
     ) internal {
         PoolInfo storage pool = poolInfoMap[poolId];
         RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
-        rewardDebt.poolIpiStrRewardDebt = amount.mul(pool.accIPISTRPerShare).div(IPISTR_DECIMAL_SCALER);
+        rewardDebt.poolIpistrRewardDebt = amount.mul(pool.accIPISTRPerShare).div(IPISTR_DECIMAL_SCALER);
         rewardDebt.poolStableRewardDebt = amount.mul(pool.accStablePerShare).div(IPISTR_DECIMAL_SCALER);
     }
 
-    function getPools() internal view returns (uint256[] memory _poodIds) {
+    function _getPools() internal view returns (uint256[] memory _poodIds) {
         _poodIds = poolGuardian.getPoolIds();
     }
 
-    function getStrPool(uint256 poolId) public view returns (address strToken) {
-        (, strToken, ) = poolGuardian.getPoolInfo(poolId);
+    function getStrPool(uint256 poolId) public view returns (address strPool) {
+        (, strPool, ) = poolGuardian.getPoolInfo(poolId);
     }
 
     function getForShares(address account, uint256 poolId) internal view returns (uint256 voteShare, uint256 totalShare) {
@@ -325,7 +319,7 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
     }
 
     function setAllocPoint(uint256[] calldata _poolIds, uint256[] calldata _allocPoints) external isManager {
-        require(_poolIds.length == _allocPoints.length, "PoolRewardModel: Invalid params");
+        require(_poolIds.length == _allocPoints.length, "PoolReward: Invalid params");
         for (uint256 i = 0; i < _poolIds.length; i++) {
             uint256 _befPoolWeight = _getBefPoolWeight(_poolIds[i]);
             (address stakedToken, , ) = poolGuardian.getPoolInfo(_poolIds[i]);
@@ -336,14 +330,14 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
             uint256 _aftPoolWeight = uint256(poolInfoMap[_poolIds[i]].multiplier).mul(_allocPoints[i]);
             totalAllocWeight = totalAllocWeight.sub(_befPoolWeight).add(_aftPoolWeight);
             poolInfoMap[_poolIds[i]].allocPoint = _allocPoints[i].to64();
-            updatePool(_poolIds[i]);
+            _updatePool(_poolIds[i]);
         }
     }
 
-    function setIpistrPerBlock(uint256 _ipistrPerBlock) external isManager {
+    function setIpistrPerBlock(uint256 _ipistrPerBlock) external isKeeper {
         uint256[] memory onlinePools = poolGuardian.queryPools(address(0), IPoolGuardian.PoolStatus.RUNNING);
         for (uint256 i = 0; i < onlinePools.length; i++) {
-            updatePool(onlinePools[i]);
+            _updatePool(onlinePools[i]);
         }
         ipistrPerBlock = _ipistrPerBlock;
     }
@@ -359,8 +353,8 @@ contract PoolRewardModelImpl is Rescuable, ChainSchema, Pausable, PoolRewardMode
         address _ipistrToken,
         address _committee,
         address _farming
-    ) public isKeeper {
-        require(!_initialized, "PoolRewardModel: Already initialized");
+    ) external isSavior {
+        require(!_initialized, "PoolReward: Already initialized");
         ipistrPerBlock = 1e19;
         shorterBone = IShorterBone(_shorterBone);
         poolGuardian = IPoolGuardian(_poolGuardian);

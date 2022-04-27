@@ -1,21 +1,18 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
 
-import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "../../libraries/AllyLibrary.sol";
 import "../../interfaces/IShorterBone.sol";
 import "../../interfaces/v1/model/IGovRewardModel.sol";
-import "../../criteria/Affinity.sol";
 import "../../criteria/ChainSchema.sol";
 import "../../storage/model/GovRewardModelStorage.sol";
 import "../../util/BoringMath.sol";
-import "../Rescuable.sol";
 
-contract GovRewardModelImpl is Rescuable, ChainSchema, Pausable, GovRewardModelStorage, IGovRewardModel {
+contract GovRewardModelImpl is ChainSchema, GovRewardModelStorage, IGovRewardModel {
     using BoringMath for uint256;
 
-    constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}
+    constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
     function harvest(address user) external override returns (uint256 rewards) {
         bool isAccount = user == msg.sender;
@@ -49,7 +46,7 @@ contract GovRewardModelImpl is Rescuable, ChainSchema, Pausable, GovRewardModelS
         address _ipistrToken,
         address _farming,
         address _committee
-    ) public isKeeper {
+    ) external isSavior {
         require(!_initialized, "GovReward: Already initialized");
         shorterBone = IShorterBone(_shorterBone);
         ipistrToken = _ipistrToken;
@@ -59,7 +56,7 @@ contract GovRewardModelImpl is Rescuable, ChainSchema, Pausable, GovRewardModelS
         _initialized = true;
     }
 
-    function setApyPoint(uint256 newApyPoint) external isManager {
+    function setApyPoint(uint256 newApyPoint) external isKeeper {
         ApyPoint = newApyPoint;
     }
 

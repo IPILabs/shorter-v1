@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
 
-import "@openzeppelin/contracts/utils/Pausable.sol";
 import "../../libraries/AllyLibrary.sol";
 import "../../interfaces/v1/model/ITradingRewardModel.sol";
-import "../../interfaces/IStrPool.sol";
+import "../../interfaces/IPool.sol";
 import "../../criteria/ChainSchema.sol";
 import "../../storage/model/TradingRewardModelStorage.sol";
 import "../../util/BoringMath.sol";
-import "../Rescuable.sol";
 
-contract TradingRewardModelImpl is Rescuable, ChainSchema, Pausable, TradingRewardModelStorage, ITradingRewardModel {
+contract TradingRewardModelImpl is ChainSchema, TradingRewardModelStorage, ITradingRewardModel {
     using BoringMath for uint256;
 
-    constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}
+    constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
     function initialize(
         address _shorterBone,
@@ -21,8 +19,8 @@ contract TradingRewardModelImpl is Rescuable, ChainSchema, Pausable, TradingRewa
         address _priceOracle,
         address _ipistrToken,
         address _farming
-    ) public isKeeper {
-        require(!_initialized, "TradingRewardModel: Already initialized");
+    ) external isSavior {
+        require(!_initialized, "TradingReward: Already initialized");
         shorterBone = IShorterBone(_shorterBone);
         poolGuardian = IPoolGuardian(_poolGuardian);
         priceOracle = IPriceOracle(_priceOracle);
@@ -82,14 +80,14 @@ contract TradingRewardModelImpl is Rescuable, ChainSchema, Pausable, TradingRewa
     }
 
     function _getTradingFee(address trader, uint256 poolId) internal view returns (uint256 tradingFee) {
-        (address strToken, uint256 stableTokenDecimals) = getStableTokenDecimals(poolId);
-        tradingFee = IStrPool(strToken).tradingFeeOf(trader).mul(10**(uint256(18).sub(stableTokenDecimals)));
-        uint256 currentRoundTradingFee = IStrPool(strToken).currentRoundTradingFeeOf(trader);
+        (address strPool, uint256 stableTokenDecimals) = _getStableTokenDecimals(poolId);
+        tradingFee = IPool(strPool).tradingFeeOf(trader).mul(10**(uint256(18).sub(stableTokenDecimals)));
+        uint256 currentRoundTradingFee = IPool(strPool).currentRoundTradingFeeOf(trader);
         tradingFee = tradingFee.sub(tradingRewardDebt[poolId][trader]).sub(currentRoundTradingFee);
     }
 
-    function getStableTokenDecimals(uint256 poolId) internal view returns (address strToken, uint256 stableTokenDecimals) {
-        (, strToken, ) = poolGuardian.getPoolInfo(poolId);
-        (, , , , , , , , , , stableTokenDecimals, ) = IStrPool(strToken).getInfo();
+    function _getStableTokenDecimals(uint256 poolId) internal view returns (address strPool, uint256 stableTokenDecimals) {
+        (, strPool, ) = poolGuardian.getPoolInfo(poolId);
+        (, , , , , , , , , , stableTokenDecimals, ) = IPool(strPool).getInfo();
     }
 }

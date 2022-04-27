@@ -9,13 +9,12 @@ import "../../interfaces/IShorterBone.sol";
 import "../../criteria/ChainSchema.sol";
 import "../../storage/model/FarmingRewardModelStorage.sol";
 import "../../util/BoringMath.sol";
-import "../Rescuable.sol";
 
-contract FarmingRewardModelImpl is Rescuable, ChainSchema, Pausable, FarmingRewardModelStorage, IFarmingRewardModel {
+contract FarmingRewardModelImpl is ChainSchema, FarmingRewardModelStorage, IFarmingRewardModel {
     using BoringMath for uint256;
     using SafeToken for ISRC20;
 
-    constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}
+    constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
     function harvestByPool(address user) external override returns (uint256 rewards) {
         if (user != msg.sender) {
@@ -56,42 +55,42 @@ contract FarmingRewardModelImpl is Rescuable, ChainSchema, Pausable, FarmingRewa
     }
 
     function pendingReward(address _user) public view override returns (uint256 unLockRewards_, uint256 rewards_) {
-        uint256 userStakedAmount = getUserStakedAmount(_user);
+        uint256 userStakedAmount = _getUserStakedAmount(_user);
 
         if (userStakedAmount == 0 || maxLpSupply == 0 || maxUnlockSpeed == 0) {
             return (0, 0);
         }
 
-        uint256 userLockedAmount = getLockedBalanceOf(_user);
+        uint256 userLockedAmount = _getLockedBalanceOf(_user);
 
         if (userLockedAmount > 0) {
-            uint256 unlockedSpeed = getUnlockSpeed(userStakedAmount);
+            uint256 unlockedSpeed = _getUnlockSpeed(userStakedAmount);
             uint256 estimateEndBlock = (userLockedAmount.div(unlockedSpeed)).add(userLastRewardBlock[_user]);
             if (estimateEndBlock > block.number) {
                 unLockRewards_ = (block.number.sub(userLastRewardBlock[_user])).mul(unlockedSpeed);
                 return (unLockRewards_, 0);
             } else {
                 unLockRewards_ = userLockedAmount;
-                uint256 baseSpeed = getBaseSpeed(userStakedAmount);
+                uint256 baseSpeed = _getBaseSpeed(userStakedAmount);
                 rewards_ = (block.number.sub(estimateEndBlock)).mul(baseSpeed);
                 return (unLockRewards_, rewards_);
             }
         }
 
-        uint256 baseSpeed = getBaseSpeed(userStakedAmount);
+        uint256 baseSpeed = _getBaseSpeed(userStakedAmount);
         rewards_ = (block.number.sub(userLastRewardBlock[_user])).mul(baseSpeed);
     }
 
     function getSpeed(address user) external view returns (uint256 speed) {
-        uint256 userLockedAmount = getLockedBalanceOf(user);
-        uint256 userStakedAmount = getUserStakedAmount(user);
+        uint256 userLockedAmount = _getLockedBalanceOf(user);
+        uint256 userStakedAmount = _getUserStakedAmount(user);
 
         if (userStakedAmount == 0 || maxLpSupply == 0 || maxUnlockSpeed == 0) {
             return 0;
         }
 
         if (userLockedAmount > 0) {
-            speed = getUnlockSpeed(userStakedAmount);
+            speed = _getUnlockSpeed(userStakedAmount);
             uint256 estimateEndBlock = (userLockedAmount.div(speed)).add(userLastRewardBlock[user]);
 
             if (estimateEndBlock > block.number) {
@@ -99,7 +98,7 @@ contract FarmingRewardModelImpl is Rescuable, ChainSchema, Pausable, FarmingRewa
             }
         }
 
-        speed = getBaseSpeed(userStakedAmount);
+        speed = _getBaseSpeed(userStakedAmount);
     }
 
     function setMaxUnlockSpeed(uint256 _maxUnlockSpeed) external isManager {
@@ -110,11 +109,11 @@ contract FarmingRewardModelImpl is Rescuable, ChainSchema, Pausable, FarmingRewa
         maxLpSupply = _maxLpSupply;
     }
 
-    function setFarming(address newFarming) public isManager {
+    function setFarming(address newFarming) external isKeeper {
         farming = IFarming(newFarming);
     }
 
-    function getBaseSpeed(uint256 userStakedAmount) internal view returns (uint256 speed) {
+    function _getBaseSpeed(uint256 userStakedAmount) internal view returns (uint256 speed) {
         if (userStakedAmount >= maxLpSupply) {
             return maxUnlockSpeed;
         }
@@ -122,7 +121,7 @@ contract FarmingRewardModelImpl is Rescuable, ChainSchema, Pausable, FarmingRewa
         return maxUnlockSpeed.mul(userStakedAmount).div(maxLpSupply);
     }
 
-    function getUnlockSpeed(uint256 userStakedAmount) internal view returns (uint256 speed) {
+    function _getUnlockSpeed(uint256 userStakedAmount) internal view returns (uint256 speed) {
         if (userStakedAmount.mul(2**10) < maxLpSupply) {
             return userStakedAmount.mul(2**10).mul(maxUnlockSpeed).div(maxLpSupply).div(10);
         }
@@ -142,11 +141,11 @@ contract FarmingRewardModelImpl is Rescuable, ChainSchema, Pausable, FarmingRewa
         }
     }
 
-    function getUserStakedAmount(address _user) internal view returns (uint256 userStakedAmount_) {
+    function _getUserStakedAmount(address _user) internal view returns (uint256 userStakedAmount_) {
         userStakedAmount_ = farming.getUserStakedAmount(_user);
     }
 
-    function getLockedBalanceOf(address account) internal view returns (uint256) {
+    function _getLockedBalanceOf(address account) internal view returns (uint256) {
         return ipistrToken.lockedBalanceOf(account);
     }
 
@@ -154,9 +153,10 @@ contract FarmingRewardModelImpl is Rescuable, ChainSchema, Pausable, FarmingRewa
         address _shorterBone,
         address _farming,
         address _ipistrToken
-    ) public isKeeper {
-        require(!_initialized, "FarmingRewardModel: Already initialized");
-
+    ) external isSavior {
+        require(!_initialized, "FarmingReward: Already initialized");
+        maxLpSupply = 1e24;
+        maxUnlockSpeed = 1e17;
         shorterBone = IShorterBone(_shorterBone);
         farming = IFarming(_farming);
         ipistrToken = IIpistrToken(_ipistrToken);

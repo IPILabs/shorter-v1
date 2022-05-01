@@ -2,7 +2,6 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/utils/Pausable.sol";
 import {SafeERC20 as SafeToken} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "../libraries/AllyLibrary.sol";
 import "../libraries/TickMath.sol";
@@ -21,15 +20,14 @@ import "../interfaces/v1/model/IVoteRewardModel.sol";
 import "../criteria/ChainSchema.sol";
 import "../storage/FarmingStorage.sol";
 import "../util/BoringMath.sol";
-import "./Rescuable.sol";
 
-contract FarmingImpl is Rescuable, ChainSchema, Pausable, FarmingStorage, IFarming {
+contract FarmingImpl is ChainSchema, FarmingStorage, IFarming {
     using SafeToken for ISRC20;
     using BoringMath for uint256;
 
     mapping (uint256 => mapping(address => UserInfo)) public tokenUserInfoMap;
 
-    constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}
+    constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
     // amountA: Uniswap pool token0 Amount
     // amountB: Uniswap pool token1 Amount
@@ -38,9 +36,9 @@ contract FarmingImpl is Rescuable, ChainSchema, Pausable, FarmingStorage, IFarmi
         uint256 amountA,
         uint256 amountB,
         uint256 minLiquidity
-    ) public whenNotPaused onlyEOA returns (uint256 liquidity) {
+    ) external whenNotPaused onlyEOA returns (uint256 liquidity) {
         require(tokenId == _tokenId, "Farming: Invalid tokenId");
-        updatePool(tokenId);
+        _updatePool(tokenId);
         PoolInfo storage pool = poolInfoMap[tokenId];
         (, uint256 token0Reward, uint256 token1Reward) = getUserInfo(msg.sender, tokenId);
         if (token0Reward > 0) {
@@ -69,10 +67,10 @@ contract FarmingImpl is Rescuable, ChainSchema, Pausable, FarmingStorage, IFarmi
         uint256 liquidity,
         uint256 amount0Min,
         uint256 amount1Min
-    ) public whenNotPaused onlyEOA {
+    ) external whenNotPaused onlyEOA {
         UserInfo storage userInfo = tokenUserInfoMap[tokenId][msg.sender];
         require(userInfo.amount >= liquidity, "Farming: Invalid withdraw amount");
-        updatePool(tokenId);
+        _updatePool(tokenId);
         PoolInfo storage pool = poolInfoMap[tokenId];
         (, uint256 token0Reward, uint256 token1Reward) = getUserInfo(msg.sender, tokenId);
         INonfungiblePositionManager.DecreaseLiquidityParams memory decreaseLiquidityParams = INonfungiblePositionManager.DecreaseLiquidityParams({tokenId: tokenId, liquidity: uint128(liquidity), amount0Min: amount0Min, amount1Min: amount1Min, deadline: block.timestamp});
@@ -89,7 +87,7 @@ contract FarmingImpl is Rescuable, ChainSchema, Pausable, FarmingStorage, IFarmi
         emit UnStake(msg.sender, tokenId, liquidity, amount0, amount1);
     }
 
-    function updatePool(uint256 tokenId) internal {
+    function _updatePool(uint256 tokenId) internal {
         INonfungiblePositionManager.CollectParams memory collectParams = INonfungiblePositionManager.CollectParams({tokenId: tokenId, recipient: address(this), amount0Max: uint128(0) - 1, amount1Max: uint128(0) - 1});
         (uint256 amount0, uint256 amount1) = nonfungiblePositionManager.collect(collectParams);
         (, , , , , , , uint128 _liquidity, , , , ) = nonfungiblePositionManager.positions(tokenId);
@@ -121,7 +119,7 @@ contract FarmingImpl is Rescuable, ChainSchema, Pausable, FarmingStorage, IFarmi
         }
     }
 
-    function getUserStakedAmount(address user) public view override returns (uint256 userStakedAmount_) {
+    function getUserStakedAmount(address user) external view override returns (uint256 userStakedAmount_) {
         userStakedAmount_ = userStakedAmount[user];
     }
 
@@ -196,11 +194,11 @@ contract FarmingImpl is Rescuable, ChainSchema, Pausable, FarmingStorage, IFarmi
         uint160 sqrtRatioX96;
         uint160 sqrtRatioAX96;
         uint160 sqrtRatioBX96;
-        (sqrtRatioX96, sqrtRatioAX96, sqrtRatioBX96, token0, token1) = getSqrtRatioByTokenId(tokenId);
+        (sqrtRatioX96, sqrtRatioAX96, sqrtRatioBX96, token0, token1) = _getSqrtRatioByTokenId(tokenId);
         (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(sqrtRatioX96, sqrtRatioAX96, sqrtRatioBX96, liquidity);
     }
 
-    function getSqrtRatioByTokenId(uint256 tokenId)
+    function _getSqrtRatioByTokenId(uint256 tokenId)
         internal
         view
         returns (
@@ -224,15 +222,15 @@ contract FarmingImpl is Rescuable, ChainSchema, Pausable, FarmingStorage, IFarmi
         uint160 sqrtRatioAX96,
         uint160 sqrtRatioBX96,
         uint128 liquidity
-    ) public pure returns (uint256 amount0, uint256 amount1) {
+    ) external pure returns (uint256 amount0, uint256 amount1) {
         (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(sqrtRatioX96, sqrtRatioAX96, sqrtRatioBX96, liquidity);
     }
 
-    function getTickAtSqrtRatio(uint160 sqrtPriceX96) public pure returns (int256 tick) {
+    function getTickAtSqrtRatio(uint160 sqrtPriceX96) external pure returns (int256 tick) {
         tick = TickMath.getTickAtSqrtRatio(sqrtPriceX96);
     }
 
-    function getSqrtRatioAtTick(int24 tick) public pure returns (uint160 sqrtPriceX96) {
+    function getSqrtRatioAtTick(int24 tick) external pure returns (uint160 sqrtPriceX96) {
         sqrtPriceX96 = TickMath.getSqrtRatioAtTick(tick);
     }
 
@@ -242,7 +240,7 @@ contract FarmingImpl is Rescuable, ChainSchema, Pausable, FarmingStorage, IFarmi
         address _govRewardModel,
         address _poolRewardModel,
         address _voteRewardModel
-    ) public isManager {
+    ) external isKeeper {
         tradingRewardModel = ITradingRewardModel(_tradingRewardModel);
         farmingRewardModel = IFarmingRewardModel(_farmingRewardModel);
         govRewardModel = IGovRewardModel(_govRewardModel);
@@ -254,13 +252,13 @@ contract FarmingImpl is Rescuable, ChainSchema, Pausable, FarmingStorage, IFarmi
         INonfungiblePositionManager _nonfungiblePositionManager,
         IUniswapV3Pool _uniswapV3Pool,
         address _ipistrToken
-    ) public isManager {
+    ) external isKeeper {
         nonfungiblePositionManager = _nonfungiblePositionManager;
         ipistrToken = _ipistrToken;
         uniswapV3Pool = _uniswapV3Pool;
     }
 
-    function createPool(INonfungiblePositionManager.MintParams calldata params) public isManager returns (uint256) {
+    function createPool(INonfungiblePositionManager.MintParams calldata params) external isManager returns (uint256) {
         shorterBone.tillIn(params.token0, msg.sender, AllyLibrary.FARMING, params.amount0Desired);
         shorterBone.tillIn(params.token1, msg.sender, AllyLibrary.FARMING, params.amount1Desired);
         (uint256 tokenId, uint128 liquidity, , ) = nonfungiblePositionManager.mint(params);
@@ -317,19 +315,19 @@ contract FarmingImpl is Rescuable, ChainSchema, Pausable, FarmingStorage, IFarmi
         }
     }
 
-    function setTokenId(uint256 tokenId) public isManager {
+    function setTokenId(uint256 tokenId) external isKeeper {
         _tokenId = tokenId;
     }
 
-    function getTokenId() public view override returns (uint256) {
+    function getTokenId() external view override returns (uint256) {
         return _tokenId;
     }
 
-    function setPoolInfo(uint256 tokenId) public isManager {
+    function setPoolInfo(uint256 tokenId) external isKeeper {
         _setPoolInfo(tokenId);
     }
 
-    function initialize(address _shorterBone) external isKeeper {
+    function initialize(address _shorterBone) external isSavior {
         require(!_initialized, "Farming: Already initialized");
         shorterBone = IShorterBone(_shorterBone);
         _initialized = true;
@@ -337,7 +335,7 @@ contract FarmingImpl is Rescuable, ChainSchema, Pausable, FarmingStorage, IFarmi
 
     function harvest(uint256 tokenId, address user) external override {
         require(msg.sender == address(farmingRewardModel), "Farming: Caller is not FarmingRewardModel");
-        updatePool(tokenId);
+        _updatePool(tokenId);
         PoolInfo storage pool = poolInfoMap[tokenId];
         (, uint256 token0Reward, uint256 token1Reward) = getUserInfo(user, tokenId);
         if (token0Reward > 0) {

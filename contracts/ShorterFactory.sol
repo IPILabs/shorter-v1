@@ -2,33 +2,37 @@
 pragma solidity 0.6.12;
 
 import "./interfaces/IShorterFactory.sol";
-import "./proxy/StrPool.sol";
-import "./v1/Rescuable.sol";
+import "./interfaces/IShorterBone.sol";
+import "./proxy/Pool.sol";
 
-contract ShorterFactory is Rescuable, IShorterFactory {
-    mapping(uint256 => address) public getStrToken;
-    address[] public allStrTokens;
+contract ShorterFactory is Affinity, IShorterFactory {
+    mapping(uint256 => address) public getPoolAddr;
     address public shorterBone;
 
     event Deployed(address indexed addr, uint256 salt);
 
-    constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}
+    modifier onlyPoolGuardian() {
+        require(msg.sender == IShorterBone(shorterBone).getAddress(AllyLibrary.POOL_GUARDIAN), "ShorterFactory: Caller is not PoolGuardian");
+        _;
+    }
 
-    function createStrPool(uint256 poolId, address _poolGuardian) external override isKeeper returns (address strToken) {
-        if (getStrToken[poolId] != address(0)) return getStrToken[poolId];
-        bytes memory bytecode = type(StrPool).creationCode;
+    constructor(address _SAVIOR) public Affinity(_SAVIOR) {}
+
+    function createStrPool(uint256 poolId, address _poolGuardian) external override onlyPoolGuardian returns (address strPool) {
+        if (getPoolAddr[poolId] != address(0)) return getPoolAddr[poolId];
+        bytes memory bytecode = type(Pool).creationCode;
         bytecode = abi.encodePacked(bytecode, abi.encode(SAVIOR, shorterBone, _poolGuardian));
         assembly {
-            strToken := create2(0, add(bytecode, 0x20), mload(bytecode), poolId)
-            if iszero(extcodesize(strToken)) {
+            strPool := create2(0, add(bytecode, 0x20), mload(bytecode), poolId)
+            if iszero(extcodesize(strPool)) {
                 revert(0, 0)
             }
         }
 
-        getStrToken[poolId] = strToken;
+        getPoolAddr[poolId] = strPool;
     }
 
-    function createOthers(bytes memory code, uint256 salt) external override isKeeper returns (address _contractAddr) {
+    function createOthers(bytes memory code, uint256 salt) external override isSavior returns (address _contractAddr) {
         assembly {
             _contractAddr := create2(0, add(code, 0x20), mload(code), salt)
             if iszero(extcodesize(_contractAddr)) {
@@ -39,7 +43,8 @@ contract ShorterFactory is Rescuable, IShorterFactory {
         emit Deployed(_contractAddr, salt);
     }
 
-    function setShorterBone(address newShorterBone) external isKeeper {
+    function setShorterBone(address newShorterBone) external {
+        require(shorterBone == address(0), "ShorterFactory: shorterBone is not zero address");
         shorterBone = newShorterBone;
     }
 }

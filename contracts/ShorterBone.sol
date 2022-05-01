@@ -8,11 +8,11 @@ import "./interfaces/ISRC20.sol";
 import "./interfaces/IUSDT.sol";
 import "./interfaces/IShorterBone.sol";
 import "./interfaces/v1/ITradingHub.sol";
-import "./criteria/Affinity.sol";
+import "./criteria/ChainSchema.sol";
 import "./util/BoringMath.sol";
 
-/// @notice Mainstay for system and smart contracts
-contract ShorterBone is Affinity, IShorterBone {
+/// @notice Mainstay for all smart contracts
+contract ShorterBone is ChainSchema, IShorterBone {
     using SafeToken for ISRC20;
     using BoringMath for uint256;
 
@@ -31,8 +31,9 @@ contract ShorterBone is Affinity, IShorterBone {
     mapping(bytes32 => address) public allyContracts;
     mapping(address => TokenInfo) public override getTokenInfo;
     mapping(uint256 => address) public tokens;
+    mapping(address => bool) public taxFreeTokenList;
 
-    constructor(address _SAVIOR) public Affinity(_SAVIOR) {
+    constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {
         mintable = true;
         lockedMintable = true;
     }
@@ -48,7 +49,7 @@ contract ShorterBone is Affinity, IShorterBone {
         address user,
         bytes32 toAllyId,
         uint256 amount
-    ) external override onlyAlly(toAllyId) {
+    ) external override whenNotPaused onlyAlly(toAllyId) {
         require(allyContracts[toAllyId] != address(0), "ShorterBone: toAllyId is zero Address");
 
         _transfer(tokenAddr, user, allyContracts[toAllyId], amount);
@@ -62,7 +63,7 @@ contract ShorterBone is Affinity, IShorterBone {
         bytes32 fromAllyId,
         address user,
         uint256 amount
-    ) external override onlyAlly(fromAllyId) {
+    ) external override whenNotPaused onlyAlly(fromAllyId) {
         require(allyContracts[fromAllyId] != address(0), "ShorterBone: Invalid fromAllyId");
 
         _transfer(tokenAddr, allyContracts[fromAllyId], user, amount);
@@ -75,10 +76,10 @@ contract ShorterBone is Affinity, IShorterBone {
         address token,
         address user,
         uint256 amount
-    ) external override {
-        address strToken = getStrToken(poolId);
-        require(msg.sender == strToken, "ShorterBone: Caller is not StrPool");
-        _transfer(token, user, strToken, amount);
+    ) external override whenNotPaused {
+        address poolAddr = _getPoolAddr(poolId);
+        require(msg.sender == poolAddr, "ShorterBone: Caller is not a Pool");
+        _transfer(token, user, poolAddr, amount);
         emit PoolTillIn(poolId, user, amount);
     }
 
@@ -87,10 +88,10 @@ contract ShorterBone is Affinity, IShorterBone {
         address token,
         address user,
         uint256 amount
-    ) external override {
-        address strToken = getStrToken(poolId);
-        require(msg.sender == strToken, "ShorterBone: Caller is not StrPool");
-        _transfer(token, strToken, user, amount);
+    ) external override whenNotPaused {
+        address poolAddr = _getPoolAddr(poolId);
+        require(msg.sender == poolAddr, "ShorterBone: Caller is not a Pool");
+        _transfer(token, poolAddr, user, amount);
         emit PoolTillOut(poolId, user, amount);
     }
 
@@ -100,10 +101,10 @@ contract ShorterBone is Affinity, IShorterBone {
         address token,
         uint256 amount,
         IncomeType _type
-    ) external override {
-        address strToken = getStrToken(poolId);
-        require(msg.sender == strToken, "ShorterBone: Caller is not StrPool");
-        _transfer(token, strToken, allyContracts[AllyLibrary.TREASURY], amount);
+    ) external override whenNotPaused {
+        address poolAddr = _getPoolAddr(poolId);
+        require(msg.sender == poolAddr, "ShorterBone: Caller is not a Pool");
+        _transfer(token, poolAddr, allyContracts[AllyLibrary.TREASURY], amount);
         emit Revenue(token, user, amount, _type);
     }
 
@@ -113,7 +114,7 @@ contract ShorterBone is Affinity, IShorterBone {
         address from,
         uint256 amount,
         IncomeType _type
-    ) external override onlyAlly(sendAllyId) {
+    ) external override whenNotPaused onlyAlly(sendAllyId) {
         address treasuryAddr = allyContracts[AllyLibrary.TREASURY];
 
         require(treasuryAddr != address(0), "ShorterBone: Treasury is not ready");
@@ -123,16 +124,16 @@ contract ShorterBone is Affinity, IShorterBone {
         emit Revenue(tokenAddr, from, amount, _type);
     }
 
-    function getStrToken(uint256 poolId) internal view returns (address strToken) {
+    function _getPoolAddr(uint256 poolId) internal view returns (address strPoolAddr) {
         address poolGuardian = allyContracts[AllyLibrary.POOL_GUARDIAN];
-        (, strToken, ) = IPoolGuardian(poolGuardian).getPoolInfo(poolId);
+        (, strPoolAddr, ) = IPoolGuardian(poolGuardian).getPoolInfo(poolId);
     }
 
     function mintByAlly(
         bytes32 sendAllyId,
         address user,
         uint256 amount
-    ) external override onlyAlly(sendAllyId) {
+    ) external override whenNotPaused onlyAlly(sendAllyId) {
         require(mintable, "ShorterBone: Mint is unavailable for now");
 
         _mint(user, amount);
@@ -167,51 +168,46 @@ contract ShorterBone is Affinity, IShorterBone {
     }
 
     function addTokenWhiteList(
-        address token,
-        address swapRouter,
-        uint256 multiplier
-    ) public isManager {
-        _addTokenWhiteList(token, swapRouter, multiplier);
-    }
-
-    function batchAddTokenWhiteList(
         address _swapRouter,
         address[] calldata tokenAddrs,
         uint256[] calldata _multipliers
-    ) external isManager {
+    ) external isKeeper {
         require(tokenAddrs.length == _multipliers.length, "ShorterBone: Invaild params");
         for (uint256 i = 0; i < tokenAddrs.length; i++) {
-            _addTokenWhiteList(tokenAddrs[i], _swapRouter, _multipliers[i]);
+            tokens[totalTokenSize++] = tokenAddrs[i];
+            getTokenInfo[tokenAddrs[i]] = TokenInfo({inWhiteList: true, swapRouter: _swapRouter, multiplier: _multipliers[i]});
+
+            _approve(AllyLibrary.AUCTION_HALL, tokenAddrs[i]);
+            _approve(AllyLibrary.VAULT_BUTLER, tokenAddrs[i]);
         }
     }
 
-    function setTokenInWhiteList(address token, bool flag) external isManager {
+    function setTokenInWhiteList(address token, bool flag) external isKeeper {
         getTokenInfo[token].inWhiteList = flag;
     }
 
-    function setSwapRouter(address token, address newSwapRouter) external isManager {
+    function setTokenSwapRouter(address token, address newSwapRouter) external isKeeper {
         getTokenInfo[token].swapRouter = newSwapRouter;
     }
 
     function setMultiplier(address token, uint256 multiplier) external {
-        require(msg.sender == allyContracts[AllyLibrary.COMMITTEE], "ShorterBone: Caller is not committee");
+        require(msg.sender == allyContracts[AllyLibrary.COMMITTEE], "ShorterBone: Caller is not Committee");
         getTokenInfo[token].multiplier = multiplier;
     }
 
-    function mint(address[] calldata users, uint256[] calldata amounts) external isManager {
-        require(mintable, "ShorterBone: Mint is unavailable for now");
-        require(users.length == amounts.length, "ShorterBone: Invalid mint params");
-        for (uint256 i = 0; i < users.length; i++) {
-            _mint(users[i], amounts[i]);
-        }
-    }
-
-    function approve(bytes32 allyId, address tokenAddr) external isManager {
+    function approve(bytes32 allyId, address tokenAddr) external isKeeper {
         _approve(allyId, tokenAddr);
     }
 
-    function setTetherToken(address _TetherToken) external isManager {
+    function setTetherToken(address _TetherToken) external isKeeper {
+        require(_TetherToken != address(0), "ShorterBone: TetherToken is zero address");
         TetherToken = _TetherToken;
+    }
+
+    function setTaxFreeTokenList(address[] calldata tokenAddrs, bool flag) external isKeeper {
+        for (uint256 i = 0; i < tokenAddrs.length; i++) {
+            taxFreeTokenList[tokenAddrs[i]] = flag;
+        }
     }
 
     function _transfer(
@@ -234,7 +230,7 @@ contract ShorterBone is Affinity, IShorterBone {
         uint256 token0Aft = token.balanceOf(from);
         uint256 token1Aft = token.balanceOf(to);
 
-        if (token0Aft.add(value) != token0Bal || token1Bal.add(value) != token1Aft) {
+        if (!taxFreeTokenList[tokenAddr] && (token0Aft.add(value) != token0Bal || token1Bal.add(value) != token1Aft)) {
             revert("ShorterBone: Fatal exception. transfer failed");
         }
     }
@@ -244,18 +240,6 @@ contract ShorterBone is Affinity, IShorterBone {
         require(ipistrAddr != address(0), "ShorterBone: IPISTR unavailable");
 
         IIpistrToken(ipistrAddr).mint(user, amount);
-    }
-
-    function _addTokenWhiteList(
-        address token,
-        address swapRouter,
-        uint256 multiplier
-    ) internal {
-        tokens[totalTokenSize++] = token;
-        getTokenInfo[token] = TokenInfo({inWhiteList: true, swapRouter: swapRouter, multiplier: multiplier});
-
-        _approve(AllyLibrary.AUCTION_HALL, token);
-        _approve(AllyLibrary.VAULT_BUTLER, token);
     }
 
     function _approve(bytes32 allyId, address tokenAddr) internal {

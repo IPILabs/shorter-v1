@@ -8,6 +8,7 @@ exports/
 node_modules/
 .history/
 build/
+.build
 .env
 .certora*
 certora_*

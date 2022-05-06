@@ -4,15 +4,15 @@ pragma solidity 0.6.12;
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "../interfaces/governance/IIpistrToken.sol";
 import "../criteria/ChainSchema.sol";
+import "../criteria/Affinity.sol";
 import "../storage/PrometheusStorage.sol";
 import "../tokens/ERC20.sol";
-import "./Rescuable.sol";
 
 /// @notice Governance token of Shorter
-contract IpistrTokenImpl is Rescuable, ChainSchema, Pausable, ERC20, PrometheusStorage, IIpistrToken {
+contract IpistrTokenImpl is ChainSchema, ERC20, PrometheusStorage, IIpistrToken {
     using BoringMath for uint256;
 
-    constructor(address _SAVIOR) public Rescuable(_SAVIOR) {}
+    constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
     function spendableBalanceOf(address account) external view override returns (uint256 _balanceOf) {
         _balanceOf = _spendableBalanceOf(account);
@@ -64,7 +64,7 @@ contract IpistrTokenImpl is Rescuable, ChainSchema, Pausable, ERC20, PrometheusS
         emit Burn(account, amount);
     }
 
-    function initialize() public isKeeper {
+    function initialize() external isSavior {
         _name = "IPI Shorter";
         _symbol = "IPISTR";
         _decimals = 18;

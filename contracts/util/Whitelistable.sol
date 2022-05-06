@@ -16,7 +16,7 @@ contract Whitelistable is Ownable {
         _;
     }
 
-    modifier whitelisted(address _account) {
+    modifier inWhitelist(address _account) {
         require(whitelisted[_account], "Whitelistable: Account is in whitelist");
         _;
     }

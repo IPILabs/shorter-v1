@@ -44,7 +44,7 @@ contract WrappedTokenImpl is Ownable, Pausable, Whitelistable, WrappedTokenStora
         emit Transfer(from, to, value);
     }
 
-    function transfer(address to, uint256 value) external whenNotPaused whitelisted(msg.sender) whitelisted(to) returns (bool) {
+    function transfer(address to, uint256 value) external whenNotPaused inWhitelist(msg.sender) inWhitelist(to) returns (bool) {
         _transfer(msg.sender, to, value);
         return true;
     }
@@ -53,7 +53,7 @@ contract WrappedTokenImpl is Ownable, Pausable, Whitelistable, WrappedTokenStora
         address from,
         address to,
         uint256 value
-    ) external whenNotPaused whitelisted(from) whitelisted(to) returns (bool) {
+    ) external whenNotPaused inWhitelist(from) inWhitelist(to) returns (bool) {
         if (allowance[from][msg.sender] != uint256(-1)) {
             allowance[from][msg.sender] = allowance[from][msg.sender].sub(value);
         }

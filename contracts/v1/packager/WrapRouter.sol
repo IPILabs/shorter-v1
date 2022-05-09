@@ -43,8 +43,8 @@ contract WrapRouter is Ownable, Pausable {
             transferableAmounts[account][msg.sender] = transferableAmounts[account][msg.sender].add(amount);
         }
         controvertibleAmounts[msg.sender] = controvertibleAmounts[msg.sender].add(amount);
-        _safeTransferFrom(token, account, getGrandetie[token], amount);
-        IWrappedToken(getInherit[token]).mint(account, amount);
+        _safeTransferFrom(token, msg.sender, getGrandetie[token], amount);
+        IWrappedToken(getInherit[token]).mint(msg.sender, amount);
     }
 
     function unwrap(
@@ -108,10 +108,10 @@ contract WrapRouter is Ownable, Pausable {
         uint256 value
     ) public view returns (address stakedToken) {
         if (token == wrappedEtherAddr && getGrandetie[token] != address(0)) {
-            stakedToken = _wrapableWithToken(token, strPool, account, amount);
+            stakedToken = _wrapableWithETH(strPool, account, value);
         }
         if (token != wrappedEtherAddr && getGrandetie[token] != address(0)) {
-            stakedToken = _wrapableWithETH(strPool, account, value);
+            stakedToken = _wrapableWithToken(token, strPool, account, amount);
         }
     }
 

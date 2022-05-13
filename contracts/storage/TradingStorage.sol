@@ -45,6 +45,7 @@ contract TradingStorage is TitanCoreStorage {
         uint256 closingBlock;
         uint256 overdrawnBlock;
         uint256 closedBlock;
+        uint256 lastSellBlock;
     }
 
     struct PositionInfo {

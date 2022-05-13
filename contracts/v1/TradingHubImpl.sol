@@ -33,7 +33,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         uint256 amount,
         uint256 amountOutMin,
         bytes memory path
-    ) external whenNotPaused onlyEOA {
+    ) external whenNotPaused {
         PoolInfo memory pool = _getPoolInfo(poolId);
         (, address swapRouter, ) = shorterBone.getTokenInfo(address(pool.stakedToken));
         require(dexCenter.entitledSwapRouters(swapRouter), "TradingHub sellShort: Invalid SwapRouter");
@@ -55,6 +55,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
             emit PositionIncreased(poolId, msg.sender, position, amount);
         }
         IPool(pool.strToken).borrow(dexCenter.isSwapRouterV3(swapRouter), address(dexCenter), swapRouter, position, msg.sender, amount, amountOutMin, path);
+        positionBlocks[position].lastSellBlock = block.number;
     }
 
     function buyCover(
@@ -62,7 +63,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         uint256 amount,
         uint256 amountInMax,
         bytes memory path
-    ) external whenNotPaused onlyEOA {
+    ) external whenNotPaused {
         PoolInfo memory pool = _getPoolInfo(poolId);
         (, address swapRouter, ) = shorterBone.getTokenInfo(address(pool.stakedToken));
         require(dexCenter.entitledSwapRouters(swapRouter), "TradingHub buyCover: Invalid SwapRouter");
@@ -77,6 +78,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
 
         address position = _duplicatedOpenPosition(poolId, msg.sender);
         require(position != address(0), "TradingHub: Position not found");
+        require(positionBlocks[position].lastSellBlock < block.number, "TradingHub: Illegit buyCover");
 
         bool isClosed = IPool(pool.strToken).repay(isSwapRouterV3, shorterBone.TetherToken() == address(pool.stableToken), address(dexCenter), swapRouter, position, msg.sender, amount, amountInMax, path);
 

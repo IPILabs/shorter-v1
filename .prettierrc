@@ -16,7 +16,7 @@
             "options": {
                 "tabWidth": 4,
                 "printWidth": 160,
-                "useTabs": false,
+                "useTabs": true,
                 "singleQuote": true,
                 "bracketSpacing": true,
                 "trailingComma": "es5"

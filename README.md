@@ -1,3 +1,5 @@
+<img width="179px" height="59px" align="right" alt="Shorter Logo" src="https://raw.githubusercontent.com/IPILabs/shorter-v1/master/assets/shorter-logo.png" title="Shorter Logo"/>
+
 # Shorter Finance v1
 
 Shorter Finance is a truly 100% decentralized infrastructure from IPI Labs. It comprises venues for token lending, derivatives trading and foolproof liquidation, bringing margin trading and physical delivery to the DeFi landscape with the ethos of open-source.
@@ -20,24 +22,30 @@ For higher level integration, check this repo: [shorter-v1-periphery](https://gi
 
 ## Shorter’s Core Contracts
 
-- PoolGuardian (`Provider`)
+- ShorterBone
+- PoolGuardian
 - Committee
+- IPISTR Token
 - Pool
-- Trading Hub (`Trader`)
-- Auction Hall (`Ruler`)
+  - PoolGarner
+  - PoolScatter
+- Trading Hub
+- Auction Hall
   - Tanto
   - Katana
 - Vault
   - Naginata
+- DexCenter
 - Farming
   - Pool Rewards
   - Governance Rewards
   - Trading Rewards
   - Voting Rewards
+- Treasury
 
-### Pre Requisites
+### Prerequisites
 
-Before running any command, make sure to install dependencies:
+Before running any command, you can run a single command to resolve all dependency issues:
 
 ```bash
 $ yarn

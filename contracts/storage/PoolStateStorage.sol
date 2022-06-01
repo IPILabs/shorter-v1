@@ -23,8 +23,6 @@ contract PoolStateStorage is TitanCoreStorage {
 
     mapping(address => uint256[]) public createPoolIds;
 
-    mapping(address => uint256) public maxLeverage;
-
     mapping(uint256 => PoolInfo) public poolInfoMap;
 
     mapping(bytes4 => address) public poolInvokers;

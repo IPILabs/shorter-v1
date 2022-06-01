@@ -82,11 +82,7 @@ contract PoolGuardianImpl is ChainSchema, TheiaStorage, IPoolGuardian {
         return (pool.stakedToken, pool.strToken, pool.stateFlag);
     }
 
-    function setMaxLeverage(address tokenAddr, uint256 newMaxLeverage) external isManager {
-        maxLeverage[tokenAddr] = newMaxLeverage;
-    }
-
-    /// @notice Update a pool's stateFlag just for HIDING or Display. Can only be called by the owner.
+    /// @notice Switch a pool's stateFlag to HIDING or Display.
     function setStateFlag(uint256 poolId, PoolStatus status) external override isManager {
         PoolInfo storage pool = poolInfoMap[poolId];
         pool.stateFlag = status;
@@ -107,9 +103,6 @@ contract PoolGuardianImpl is ChainSchema, TheiaStorage, IPoolGuardian {
     }
 
     function _checkLeverageValid(address stakedToken, uint256 leverage) internal view returns (bool res) {
-        if (maxLeverage[stakedToken] > 0 && leverage <= maxLeverage[stakedToken]) {
-            return true;
-        }
         (, , uint256 multiplier) = shorterBone.getTokenInfo(stakedToken);
         for (uint256 i = 0; i < levelScoresDef.length; i++) {
             if (multiplier >= levelScoresDef[i] && leverage <= leverageThresholds[i]) {

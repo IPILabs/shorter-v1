@@ -82,15 +82,7 @@ contract PoolGuardianImpl is ChainSchema, TheiaStorage, IPoolGuardian {
         return (pool.stakedToken, pool.strToken, pool.stateFlag);
     }
 
-    /// @notice Switch a pool's stateFlag to HIDING or Display.
-    function setStateFlag(uint256 poolId, PoolStatus status) external override isManager {
-        PoolInfo storage pool = poolInfoMap[poolId];
-        pool.stateFlag = status;
-
-        IPool(pool.strToken).setStateFlag(status);
-    }
-
-    function setPoolInvokers(bytes4[] memory _sigs, address _implementation) external isKeeper {
+    function setPoolInvokers(bytes4[] memory _sigs, address _implementation) external isSavior {
         for (uint256 i = 0; i < _sigs.length; i++) {
             poolInvokers[_sigs[i]] = _implementation;
         }
@@ -130,6 +122,14 @@ contract PoolGuardianImpl is ChainSchema, TheiaStorage, IPoolGuardian {
         }
 
         return resPools;
+    }
+
+    /// @notice Switch a pool's stateFlag to HIDING or Display.
+    function setStateFlag(uint256 poolId, PoolStatus status) external override isManager {
+        PoolInfo storage pool = poolInfoMap[poolId];
+        pool.stateFlag = status;
+
+        IPool(pool.strToken).setStateFlag(status);
     }
 
     function getPoolInvokers(bytes4 _sig) external view override returns (address) {

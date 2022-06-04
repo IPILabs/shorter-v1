@@ -50,10 +50,7 @@ contract ShorterBone is ChainSchema, IShorterBone {
         bytes32 toAllyId,
         uint256 amount
     ) external override whenNotPaused onlyAlly(toAllyId) {
-        require(allyContracts[toAllyId] != address(0), "ShorterBone: toAllyId is zero Address");
-
         _transfer(tokenAddr, user, allyContracts[toAllyId], amount);
-
         emit TillIn(toAllyId, user, tokenAddr, amount);
     }
 
@@ -64,10 +61,7 @@ contract ShorterBone is ChainSchema, IShorterBone {
         address user,
         uint256 amount
     ) external override whenNotPaused onlyAlly(fromAllyId) {
-        require(allyContracts[fromAllyId] != address(0), "ShorterBone: Invalid fromAllyId");
-
         _transfer(tokenAddr, allyContracts[fromAllyId], user, amount);
-
         emit TillOut(fromAllyId, user, tokenAddr, amount);
     }
 
@@ -114,13 +108,9 @@ contract ShorterBone is ChainSchema, IShorterBone {
         address from,
         uint256 amount,
         IncomeType _type
-    ) external override whenNotPaused onlyAlly(sendAllyId) {
+    ) external override whenNotPaused onlyAlly(AllyLibrary.TREASURY) {
         address treasuryAddr = allyContracts[AllyLibrary.TREASURY];
-
-        require(treasuryAddr != address(0), "ShorterBone: Treasury is not ready");
-
         _transfer(tokenAddr, from, treasuryAddr, amount);
-
         emit Revenue(tokenAddr, from, amount, _type);
     }
 
@@ -135,7 +125,6 @@ contract ShorterBone is ChainSchema, IShorterBone {
         uint256 amount
     ) external override whenNotPaused onlyAlly(sendAllyId) {
         require(mintable, "ShorterBone: Mint is unavailable for now");
-
         _mint(user, amount);
     }
 
@@ -147,13 +136,11 @@ contract ShorterBone is ChainSchema, IShorterBone {
 
     function setAlly(bytes32 allyId, address contractAddr) external isKeeper {
         allyContracts[allyId] = contractAddr;
-
         emit ResetAlly(allyId, contractAddr);
     }
 
     function slayAlly(bytes32 allyId) external isKeeper {
         delete allyContracts[allyId];
-
         emit AllyKilled(allyId);
     }
 
@@ -190,8 +177,7 @@ contract ShorterBone is ChainSchema, IShorterBone {
         getTokenInfo[token].swapRouter = newSwapRouter;
     }
 
-    function setMultiplier(address token, uint256 multiplier) external {
-        require(msg.sender == allyContracts[AllyLibrary.COMMITTEE], "ShorterBone: Caller is not Committee");
+    function setMultiplier(address token, uint256 multiplier) external onlyAlly(AllyLibrary.COMMITTEE) {
         getTokenInfo[token].multiplier = multiplier;
     }
 
@@ -199,7 +185,7 @@ contract ShorterBone is ChainSchema, IShorterBone {
         _approve(allyId, tokenAddr);
     }
 
-    function setTetherToken(address _TetherToken) external isKeeper {
+    function setTetherToken(address _TetherToken) external isSavior {
         require(_TetherToken != address(0), "ShorterBone: TetherToken is zero address");
         TetherToken = _TetherToken;
     }

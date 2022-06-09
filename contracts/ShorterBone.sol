@@ -19,7 +19,7 @@ contract ShorterBone is ChainSchema, IShorterBone {
     struct TokenInfo {
         bool inWhiteList;
         address swapRouter;
-        uint256 multiplier;
+        uint256 tokenRatingScore;
     }
 
     bool internal mintable;
@@ -157,12 +157,12 @@ contract ShorterBone is ChainSchema, IShorterBone {
     function addTokenWhiteList(
         address _swapRouter,
         address[] calldata tokenAddrs,
-        uint256[] calldata _multipliers
+        uint256[] calldata _tokenRatingScores
     ) external isKeeper {
-        require(tokenAddrs.length == _multipliers.length, "ShorterBone: Invaild params");
+        require(tokenAddrs.length == _tokenRatingScores.length, "ShorterBone: Invaild params");
         for (uint256 i = 0; i < tokenAddrs.length; i++) {
             tokens[totalTokenSize++] = tokenAddrs[i];
-            getTokenInfo[tokenAddrs[i]] = TokenInfo({inWhiteList: true, swapRouter: _swapRouter, multiplier: _multipliers[i]});
+            getTokenInfo[tokenAddrs[i]] = TokenInfo({inWhiteList: true, swapRouter: _swapRouter, tokenRatingScore: _tokenRatingScores[i]});
 
             _approve(AllyLibrary.AUCTION_HALL, tokenAddrs[i]);
             _approve(AllyLibrary.VAULT_BUTLER, tokenAddrs[i]);
@@ -177,8 +177,8 @@ contract ShorterBone is ChainSchema, IShorterBone {
         getTokenInfo[token].swapRouter = newSwapRouter;
     }
 
-    function setMultiplier(address token, uint256 multiplier) external onlyAlly(AllyLibrary.COMMITTEE) {
-        getTokenInfo[token].multiplier = multiplier;
+    function setTokenRatingScore(address token, uint256 tokenRatingScore) external onlyAlly(AllyLibrary.COMMITTEE) {
+        getTokenInfo[token].tokenRatingScore = tokenRatingScore;
     }
 
     function approve(bytes32 allyId, address tokenAddr) external isKeeper {

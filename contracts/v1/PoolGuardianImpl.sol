@@ -60,6 +60,10 @@ contract PoolGuardianImpl is ChainSchema, TheiaStorage, IPoolGuardian {
         pool.stateFlag = IPoolGuardian.PoolStatus.RUNNING;
     }
 
+    function changeLeverageThresholds(uint256[] memory _leverageThresholds) external onlyCommittee {
+        leverageThresholds = _leverageThresholds;
+    }
+
     function getPoolIds() external view override returns (uint256[] memory _poolIds) {
         _poolIds = poolIds;
     }
@@ -95,9 +99,9 @@ contract PoolGuardianImpl is ChainSchema, TheiaStorage, IPoolGuardian {
     }
 
     function _checkLeverageValid(address stakedToken, uint256 leverage) internal view returns (bool res) {
-        (, , uint256 multiplier) = shorterBone.getTokenInfo(stakedToken);
+        (, , uint256 tokenRatingScore) = shorterBone.getTokenInfo(stakedToken);
         for (uint256 i = 0; i < levelScoresDef.length; i++) {
-            if (multiplier >= levelScoresDef[i] && leverage <= leverageThresholds[i]) {
+            if (tokenRatingScore >= levelScoresDef[i] && leverage <= leverageThresholds[i]) {
                 return true;
             }
         }

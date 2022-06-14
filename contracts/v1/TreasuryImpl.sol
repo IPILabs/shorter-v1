@@ -19,16 +19,9 @@ contract TreasuryImpl is ChainSchema, TreasuryStorage {
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
-    function initialize(
-        address _shorterBone,
-        address[] calldata _owners,
-        uint256 _threshold
-    ) external isSavior {
+    function initialize(address _shorterBone, uint256 _threshold) external isSavior {
         require(!_initialized, "Treasury: Already initialized");
         require(_threshold > 0, "Treasury: Invalid threshold");
-        for (uint256 i = 0; i < _owners.length; i++) {
-            _setOwner(_owners[i]);
-        }
 
         threshold = _threshold;
         shorterBone = IShorterBone(_shorterBone);
@@ -65,6 +58,16 @@ contract TreasuryImpl is ChainSchema, TreasuryStorage {
         }
     }
 
+    function setOwner(address[] calldata _owners) external isSavior {
+        for (uint256 i = 0; i < _owners.length; i++) {
+            _setOwner(_owners[i]);
+        }
+    }
+
+    function removeOwner(address _owner) external isSavior {
+        owners.remove(_owner);
+    }
+
     function getOwners() external view returns (address[] memory) {
         uint256 ownerLength = owners.length();
         address[] memory _owners = new address[](ownerLength);
@@ -76,10 +79,6 @@ contract TreasuryImpl is ChainSchema, TreasuryStorage {
 
     function setThreshold(uint256 newThreshold) external isKeeper {
         threshold = newThreshold;
-    }
-
-    function removeOwner(address _owner) external isKeeper {
-        owners.remove(_owner);
     }
 
     /// @dev Returns the bytes that are hashed to be signed by owners.

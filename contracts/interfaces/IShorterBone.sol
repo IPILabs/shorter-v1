@@ -68,7 +68,7 @@ interface IShorterBone {
         returns (
             bool inWhiteList,
             address swapRouter,
-            uint256 multiplier
+            uint256 tokenRatingScore
         );
 
     function TetherToken() external view returns (address);

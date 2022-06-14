@@ -311,11 +311,6 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ReentrancyGuard, ICommit
         emit VotingMaxDaysSet(_maxVotingDays);
     }
 
-    /// @notice Switch proposal's display state
-    function updateProposalDisplayable(uint256 proposalId, bool displayable) external isKeeper {
-        proposalGallery[proposalId].displayable = displayable;
-    }
-
     /// @notice Tweak the proposalFee argument
     function setProposalFee(uint256 _proposalFee) external isKeeper {
         proposalFee = _proposalFee;
@@ -328,6 +323,11 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ReentrancyGuard, ICommit
         rulerThreshold = newRulerThreshold;
 
         emit RulerThresholdSet(oldRulerThreshold, newRulerThreshold);
+    }
+
+    /// @notice Switch proposal's display state
+    function updateProposalDisplayable(uint256 proposalId, bool displayable) external isManager {
+        proposalGallery[proposalId].displayable = displayable;
     }
 
     function _makeProposalQueued(Proposal storage proposal) internal {

@@ -16,6 +16,10 @@ contract Affinity is AccessControl, IAffinity {
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     bytes32 public constant ALLY_ROLE = keccak256("ALLY_ROLE");
 
+    modifier isSavior() {
+        require(msg.sender == SAVIOR, "Affinity: Caller is not the Savior");
+        _;
+    }
     modifier isKeeper() {
         require(hasRole(KEEPER_ROLE, msg.sender), "Affinity: Caller is not keeper");
         _;
@@ -28,11 +32,6 @@ contract Affinity is AccessControl, IAffinity {
 
     modifier isAlly() {
         require(hasRole(ALLY_ROLE, msg.sender), "Affinity: Caller is not ally");
-        _;
-    }
-
-    modifier isSavior() {
-        require(msg.sender == SAVIOR, "Affinity: Caller is not the Savior");
         _;
     }
 
@@ -64,7 +63,7 @@ contract Affinity is AccessControl, IAffinity {
         address token,
         address spender,
         uint256 amount
-    ) external override isKeeper {
+    ) external override isSavior {
         ISRC20(token).approve(spender, amount);
     }
 
@@ -72,7 +71,7 @@ contract Affinity is AccessControl, IAffinity {
         address token,
         address spender,
         uint256 amount
-    ) external override isKeeper {
+    ) external override isSavior {
         _allowTetherToken(token, spender, amount);
     }
 
@@ -90,7 +89,6 @@ contract Affinity is AccessControl, IAffinity {
         if (_allowance > 0) {
             USDT.approve(spender, 0);
         }
-
         USDT.approve(spender, amount);
     }
 }

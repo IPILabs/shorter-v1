@@ -25,9 +25,15 @@ contract FarmingImpl is ChainSchema, FarmingStorage, IFarming {
     using SafeToken for ISRC20;
     using BoringMath for uint256;
 
-    mapping (uint256 => mapping(address => UserInfo)) public tokenUserInfoMap;
+    mapping(uint256 => mapping(address => UserInfo)) public tokenUserInfoMap;
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
+
+    function initialize(address _shorterBone) external isSavior {
+        require(!_initialized, "Farming: Already initialized");
+        shorterBone = IShorterBone(_shorterBone);
+        _initialized = true;
+    }
 
     // amountA: Uniswap pool token0 Amount
     // amountB: Uniswap pool token1 Amount
@@ -240,7 +246,7 @@ contract FarmingImpl is ChainSchema, FarmingStorage, IFarming {
         address _govRewardModel,
         address _poolRewardModel,
         address _voteRewardModel
-    ) external isKeeper {
+    ) external isSavior {
         tradingRewardModel = ITradingRewardModel(_tradingRewardModel);
         farmingRewardModel = IFarmingRewardModel(_farmingRewardModel);
         govRewardModel = IGovRewardModel(_govRewardModel);
@@ -258,7 +264,7 @@ contract FarmingImpl is ChainSchema, FarmingStorage, IFarming {
         uniswapV3Pool = _uniswapV3Pool;
     }
 
-    function createPool(INonfungiblePositionManager.MintParams calldata params) external isManager returns (uint256) {
+    function createPool(INonfungiblePositionManager.MintParams calldata params) external isKeeper returns (uint256) {
         shorterBone.tillIn(params.token0, msg.sender, AllyLibrary.FARMING, params.amount0Desired);
         shorterBone.tillIn(params.token1, msg.sender, AllyLibrary.FARMING, params.amount1Desired);
         (uint256 tokenId, uint128 liquidity, , ) = nonfungiblePositionManager.mint(params);
@@ -325,12 +331,6 @@ contract FarmingImpl is ChainSchema, FarmingStorage, IFarming {
 
     function setPoolInfo(uint256 tokenId) external isKeeper {
         _setPoolInfo(tokenId);
-    }
-
-    function initialize(address _shorterBone) external isSavior {
-        require(!_initialized, "Farming: Already initialized");
-        shorterBone = IShorterBone(_shorterBone);
-        _initialized = true;
     }
 
     function harvest(uint256 tokenId, address user) external override {

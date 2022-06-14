@@ -134,14 +134,23 @@ contract ShorterBone is ChainSchema, IShorterBone {
         return res;
     }
 
-    function setAlly(bytes32 allyId, address contractAddr) external isKeeper {
+    function setAlly(bytes32 allyId, address contractAddr) external isSavior {
         allyContracts[allyId] = contractAddr;
         emit ResetAlly(allyId, contractAddr);
     }
 
-    function slayAlly(bytes32 allyId) external isKeeper {
+    function slayAlly(bytes32 allyId) external isSavior {
         delete allyContracts[allyId];
         emit AllyKilled(allyId);
+    }
+
+    function approve(bytes32 allyId, address tokenAddr) external isSavior {
+        _approve(allyId, tokenAddr);
+    }
+
+    function setTetherToken(address _TetherToken) external isSavior {
+        require(_TetherToken != address(0), "ShorterBone: TetherToken is zero address");
+        TetherToken = _TetherToken;
     }
 
     /// @notice Tweak the mint flag
@@ -179,15 +188,6 @@ contract ShorterBone is ChainSchema, IShorterBone {
 
     function setTokenRatingScore(address token, uint256 tokenRatingScore) external onlyAlly(AllyLibrary.COMMITTEE) {
         getTokenInfo[token].tokenRatingScore = tokenRatingScore;
-    }
-
-    function approve(bytes32 allyId, address tokenAddr) external isKeeper {
-        _approve(allyId, tokenAddr);
-    }
-
-    function setTetherToken(address _TetherToken) external isSavior {
-        require(_TetherToken != address(0), "ShorterBone: TetherToken is zero address");
-        TetherToken = _TetherToken;
     }
 
     function setTaxFreeTokenList(address[] calldata tokenAddrs, bool flag) external isKeeper {

@@ -32,4 +32,11 @@ interface IDexCenter {
         address[] memory path,
         uint24[] memory fees
     ) external view returns (uint256 price);
+
+    function checkPath(
+        address token0,
+        address token1,
+        address swapRouter,
+        bytes memory path
+    ) external;
 }

@@ -50,6 +50,7 @@ contract ShorterBone is ChainSchema, IShorterBone {
         bytes32 toAllyId,
         uint256 amount
     ) external override whenNotPaused onlyAlly(toAllyId) {
+        if (amount == 0) return;
         _transfer(tokenAddr, user, allyContracts[toAllyId], amount);
         emit TillIn(toAllyId, user, tokenAddr, amount);
     }
@@ -61,6 +62,7 @@ contract ShorterBone is ChainSchema, IShorterBone {
         address user,
         uint256 amount
     ) external override whenNotPaused onlyAlly(fromAllyId) {
+        if (amount == 0) return;
         _transfer(tokenAddr, allyContracts[fromAllyId], user, amount);
         emit TillOut(fromAllyId, user, tokenAddr, amount);
     }
@@ -71,6 +73,7 @@ contract ShorterBone is ChainSchema, IShorterBone {
         address user,
         uint256 amount
     ) external override whenNotPaused {
+        if (amount == 0) return;
         address poolAddr = _getPoolAddr(poolId);
         require(msg.sender == poolAddr, "ShorterBone: Caller is not a Pool");
         _transfer(token, user, poolAddr, amount);
@@ -83,6 +86,7 @@ contract ShorterBone is ChainSchema, IShorterBone {
         address user,
         uint256 amount
     ) external override whenNotPaused {
+        if (amount == 0) return;
         address poolAddr = _getPoolAddr(poolId);
         require(msg.sender == poolAddr, "ShorterBone: Caller is not a Pool");
         _transfer(token, poolAddr, user, amount);
@@ -96,6 +100,7 @@ contract ShorterBone is ChainSchema, IShorterBone {
         uint256 amount,
         IncomeType _type
     ) external override whenNotPaused {
+        if (amount == 0) return;
         address poolAddr = _getPoolAddr(poolId);
         require(msg.sender == poolAddr, "ShorterBone: Caller is not a Pool");
         _transfer(token, poolAddr, allyContracts[AllyLibrary.TREASURY], amount);
@@ -103,12 +108,12 @@ contract ShorterBone is ChainSchema, IShorterBone {
     }
 
     function revenue(
-        bytes32 sendAllyId,
         address tokenAddr,
         address from,
         uint256 amount,
         IncomeType _type
-    ) external override whenNotPaused onlyAlly(AllyLibrary.TREASURY) {
+    ) external override whenNotPaused onlyAlly(AllyLibrary.COMMITTEE) {
+        if (amount == 0) return;
         address treasuryAddr = allyContracts[AllyLibrary.TREASURY];
         _transfer(tokenAddr, from, treasuryAddr, amount);
         emit Revenue(tokenAddr, from, amount, _type);
@@ -124,6 +129,7 @@ contract ShorterBone is ChainSchema, IShorterBone {
         address user,
         uint256 amount
     ) external override whenNotPaused onlyAlly(sendAllyId) {
+        if (amount == 0) return;
         require(mintable, "ShorterBone: Mint is unavailable for now");
         _mint(user, amount);
     }
@@ -142,10 +148,6 @@ contract ShorterBone is ChainSchema, IShorterBone {
     function slayAlly(bytes32 allyId) external isSavior {
         delete allyContracts[allyId];
         emit AllyKilled(allyId);
-    }
-
-    function approve(bytes32 allyId, address tokenAddr) external isSavior {
-        _approve(allyId, tokenAddr);
     }
 
     function setTetherToken(address _TetherToken) external isSavior {
@@ -172,9 +174,6 @@ contract ShorterBone is ChainSchema, IShorterBone {
         for (uint256 i = 0; i < tokenAddrs.length; i++) {
             tokens[totalTokenSize++] = tokenAddrs[i];
             getTokenInfo[tokenAddrs[i]] = TokenInfo({inWhiteList: true, swapRouter: _swapRouter, tokenRatingScore: _tokenRatingScores[i]});
-
-            _approve(AllyLibrary.AUCTION_HALL, tokenAddrs[i]);
-            _approve(AllyLibrary.VAULT_BUTLER, tokenAddrs[i]);
         }
     }
 
@@ -226,13 +225,5 @@ contract ShorterBone is ChainSchema, IShorterBone {
         require(ipistrAddr != address(0), "ShorterBone: IPISTR unavailable");
 
         IIpistrToken(ipistrAddr).mint(user, amount);
-    }
-
-    function _approve(bytes32 allyId, address tokenAddr) internal {
-        if (tokenAddr == TetherToken) {
-            IAffinity(allyContracts[allyId]).allowTetherToken(tokenAddr, address(this), uint256(0) - 1);
-        } else {
-            IAffinity(allyContracts[allyId]).allow(tokenAddr, address(this), uint256(0) - 1);
-        }
     }
 }

@@ -12,27 +12,15 @@ import "../interfaces/uniswapv2/IUniswapV2Router02.sol";
 import "./TitanCoreStorage.sol";
 
 contract AuctionStorage is TitanCoreStorage {
-    struct PositionInfo {
-        address strToken;
-        address stakedToken;
-        address stableToken;
-        uint256 stakedTokenDecimals;
-        uint256 stableTokenDecimals;
-        uint256 totalSize;
-        uint256 unsettledCash;
-        uint256 closingBlock;
-        ITradingHub.PositionState positionState;
-    }
-
     struct Phase1Info {
         uint256 bidSize;
         uint256 liquidationPrice;
         bool isSorted;
-        bool flag; // If the debts have been cleared
+        bool flag;
     }
 
     struct Phase2Info {
-        bool flag; // If the debts have been cleared
+        bool flag;
         bool isWithdrawn;
         address rulerAddr;
         uint256 debtSize;

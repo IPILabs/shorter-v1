@@ -54,7 +54,7 @@ contract WrapRouter is Ownable, Pausable {
         uint256 amount
     ) external whenNotPaused onlyStrPool(poolId) returns (address stakedToken) {
         if (msg.sender == account) {
-            require(amount > controvertibleAmounts[msg.sender], "WrapRouter unwrap: Insufficient liquidity");
+            require(amount <= controvertibleAmounts[msg.sender], "WrapRouter unwrap: Insufficient liquidity");
         } else {
             uint256 stakedBal = transferableAmounts[account][msg.sender];
             if (stakedBal < amount) {
@@ -107,10 +107,10 @@ contract WrapRouter is Ownable, Pausable {
         uint256 amount,
         uint256 value
     ) public view returns (address stakedToken) {
-        if (token == wrappedEtherAddr && getGrandetie[token] != address(0)) {
+        if (token == wrappedEtherAddr && getInherit[token] != address(0)) {
             stakedToken = _wrapableWithETH(strPool, account, value);
         }
-        if (token != wrappedEtherAddr && getGrandetie[token] != address(0)) {
+        if (token != wrappedEtherAddr && getInherit[token] != address(0)) {
             stakedToken = _wrapableWithToken(token, strPool, account, amount);
         }
     }
@@ -188,9 +188,9 @@ contract WrapRouter is Ownable, Pausable {
         if (balance0 > amount) {
             return token;
         }
-        uint256 balance1 = IERC20(getGrandetie[token]).balanceOf(account);
+        uint256 balance1 = IERC20(getInherit[token]).balanceOf(account);
         if (balance1 > amount && strPool != account) {
-            return getGrandetie[token];
+            return getInherit[token];
         }
     }
 
@@ -199,13 +199,12 @@ contract WrapRouter is Ownable, Pausable {
         address account,
         uint256 value
     ) internal view returns (address) {
-        uint256 balance0 = account.balance;
-        if (balance0 > value) {
+        if (value > 0) {
             return wrappedEtherAddr;
         }
-        uint256 balance1 = IERC20(getGrandetie[wrappedEtherAddr]).balanceOf(account);
+        uint256 balance1 = IERC20(getInherit[wrappedEtherAddr]).balanceOf(account);
         if (balance1 > value && strPool != account) {
-            return getGrandetie[wrappedEtherAddr];
+            return getInherit[wrappedEtherAddr];
         }
     }
 }

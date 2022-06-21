@@ -15,8 +15,8 @@ import "../util/BoringMath.sol";
 contract VaultButlerImpl is ChainSchema, GaiaStorage, IVaultButler {
     using BoringMath for uint256;
 
-    modifier onlyRuler(address ruler) {
-        require(committee.isRuler(ruler), "VaultButler: Caller is not ruler");
+    modifier onlyRuler() {
+        require(committee.isRuler(msg.sender), "VaultButler: Caller is not ruler");
         _;
     }
 
@@ -27,7 +27,7 @@ contract VaultButlerImpl is ChainSchema, GaiaStorage, IVaultButler {
         return _priceOfLegacy(positionInfo);
     }
 
-    function executeNaginata(address position, uint256 bidSize) external payable whenNotPaused onlyRuler(msg.sender) {
+    function executeNaginata(address position, uint256 bidSize) external payable whenNotPaused onlyRuler {
         PositionInfo memory positionInfo = _getPositionInfo(position);
         LegacyInfo storage legacyInfo = legacyInfos[position];
         require(bidSize > 0 && bidSize <= positionInfo.totalSize.sub(legacyInfo.bidSize), "VaultButler: Invalid bidSize");

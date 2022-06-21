@@ -167,6 +167,21 @@ contract DexCenter is Affinity, IDexCenter {
         }
     }
 
+    function checkPath(
+        address token0,
+        address token1,
+        address swapRouter,
+        bytes memory path
+    ) external override {
+        if (isSwapRouterV3[swapRouter]) {
+            require(path.getTokenIn() == address(token0), "TradingHub: Invalid token0");
+            require(path.getTokenOut() == address(token1), "TradingHub: Invalid token1");
+        } else {
+            require(path.getTokenIn() == address(token1), "TradingHub: Invalid token0");
+            require(path.getTokenOut() == address(token0), "TradingHub: Invalid token1");
+        }
+    }
+
     function addEntitledSwapRouter(address[] memory newSwapRouters) external isKeeper {
         for (uint256 i = 0; i < newSwapRouters.length; i++) {
             entitledSwapRouters[newSwapRouters[i]] = true;

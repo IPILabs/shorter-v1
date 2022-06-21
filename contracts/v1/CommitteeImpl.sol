@@ -80,7 +80,7 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ReentrancyGuard, ICommit
         proposalCount = proposalCount.add(block.timestamp.add(1).sub(block.timestamp.div(30).mul(30)));
         require(proposalGallery[proposalCount].startBlock == 0, "Committee: Existing proposal found");
         proposalIds.push(proposalCount);
-        shorterBone.revenue(AllyLibrary.COMMITTEE, address(ipistrToken), msg.sender, proposalFee, IShorterBone.IncomeType.PROPOSAL_FEE);
+        shorterBone.revenue(address(ipistrToken), msg.sender, proposalFee, IShorterBone.IncomeType.PROPOSAL_FEE);
         AllyLibrary.getPoolGuardian(shorterBone).addPool(_stakedTokenAddr, stableToken, msg.sender, _leverage, _durationDays, proposalCount);
 
         proposalGallery[proposalCount] = Proposal({id: uint32(proposalCount), proposer: msg.sender, catagory: 1, startBlock: block.number.to64(), endBlock: block.number.add(blocksPerDay().mul(maxVotingDays)).to64(), forShares: 0, againstShares: 0, status: ProposalStatus.Active, displayable: true});
@@ -104,7 +104,7 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ReentrancyGuard, ICommit
         proposalCount = proposalCount.add(block.timestamp.add(1).sub(block.timestamp.div(30).mul(30)));
         require(proposalGallery[proposalCount].startBlock == 0, "Committee: Existing proposal found");
         proposalIds.push(proposalCount);
-        shorterBone.revenue(AllyLibrary.COMMITTEE, address(ipistrToken), msg.sender, proposalFee, IShorterBone.IncomeType.PROPOSAL_FEE);
+        shorterBone.revenue(address(ipistrToken), msg.sender, proposalFee, IShorterBone.IncomeType.PROPOSAL_FEE);
         proposalGallery[proposalCount] = Proposal({id: uint32(proposalCount), proposer: msg.sender, catagory: 2, startBlock: block.number.to64(), endBlock: block.number.add(blocksPerDay().mul(maxVotingDays)).to64(), forShares: 0, againstShares: 0, status: ProposalStatus.Active, displayable: true});
         communityProposalGallery[proposalCount] = CommunityProposal({targets: targets, values: values, signatures: signatures, calldatas: calldatas});
 

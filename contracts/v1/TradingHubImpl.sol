@@ -36,10 +36,11 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
     ) external whenNotPaused {
         PoolInfo memory pool = _getPoolInfo(poolId);
         (, address swapRouter, ) = shorterBone.getTokenInfo(address(pool.stakedToken));
+
         require(dexCenter.entitledSwapRouters(swapRouter), "TradingHub sellShort: Invalid SwapRouter");
-        require(path.getTokenIn() == address(pool.stakedToken), "TradingHub: Invalid tokenIn");
-        require(path.getTokenOut() == address(pool.stableToken), "TradingHub: Invalid tokenOut");
+        require(path.getTokenIn() == address(pool.stakedToken) && path.getTokenOut() == address(pool.stableToken), "TradingHub: Invalid path");
         require(pool.stateFlag == IPoolGuardian.PoolStatus.RUNNING && pool.endBlock > block.number, "TradingHub: Expired pool");
+
         uint256 estimatePrice = priceOracle.getTokenPrice(address(pool.stakedToken));
         require(estimatePrice.mul(amount).mul(9) < amountOutMin.mul(10**(uint256(19).add(pool.stakedTokenDecimals).sub(pool.stableTokenDecimals))), "TradingHub: Slippage too large");
         address position = _duplicatedOpenPosition(poolId, msg.sender);
@@ -68,13 +69,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         (, address swapRouter, ) = shorterBone.getTokenInfo(address(pool.stakedToken));
         require(dexCenter.entitledSwapRouters(swapRouter), "TradingHub buyCover: Invalid SwapRouter");
         bool isSwapRouterV3 = dexCenter.isSwapRouterV3(swapRouter);
-        if (isSwapRouterV3) {
-            require(path.getTokenIn() == address(pool.stakedToken), "TradingHub: Invalid tokenIn");
-            require(path.getTokenOut() == address(pool.stableToken), "TradingHub: Invalid tokenOut");
-        } else {
-            require(path.getTokenIn() == address(pool.stableToken), "TradingHub: Invalid tokenIn");
-            require(path.getTokenOut() == address(pool.stakedToken), "TradingHub: Invalid tokenOut");
-        }
+        dexCenter.checkPath(address(pool.stakedToken), address(pool.stableToken), swapRouter, path);
 
         address position = _duplicatedOpenPosition(poolId, msg.sender);
         require(position != address(0), "TradingHub: Position not found");
@@ -94,10 +89,10 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         view
         override
         returns (
-            uint256 poolId,
-            address strToken,
-            uint256 closingBlock,
-            PositionState positionState
+            uint256,
+            address,
+            uint256,
+            PositionState
         )
     {
         PositionInfo storage positionInfo = positionInfoMap[position];
@@ -138,7 +133,8 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
     }
 
     function executePositions(address[] memory positions) external override onlyGrabber {
-        for (uint256 i = 0; i < positions.length; i++) {
+        uint256 positionCount = positions.length;
+        for (uint256 i = 0; i < positionCount; i++) {
             PositionInfo storage positionInfo = positionInfoMap[positions[i]];
             require(positionInfo.positionState == PositionState.OPEN, "TradingHub: Not a open position");
 
@@ -161,7 +157,8 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
     }
 
     function setBatchClosePositions(ITradingHub.BatchPositionInfo[] memory batchPositionInfos) external override onlyGrabber {
-        for (uint256 i = 0; i < batchPositionInfos.length; i++) {
+        uint256 positionCount = batchPositionInfos.length;
+        for (uint256 i = 0; i < positionCount; i++) {
             (, address strPool, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(batchPositionInfos[i].poolId);
             require(poolStatus == IPoolGuardian.PoolStatus.RUNNING, "TradingHub: Pool is not running");
             (, , , , , , , uint256 endBlock, , , , ) = IPool(strPool).getInfo();
@@ -184,7 +181,8 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
     }
 
     function delivery(ITradingHub.BatchPositionInfo[] memory batchPositionInfos) external override onlyGrabber {
-        for (uint256 i = 0; i < batchPositionInfos.length; i++) {
+        uint256 positionCount = batchPositionInfos.length;
+        for (uint256 i = 0; i < positionCount; i++) {
             (, address strToken, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(batchPositionInfos[i].poolId);
             require(poolStatus == IPoolGuardian.PoolStatus.LIQUIDATING, "TradingHub: Pool is not liquidating");
             (, , , , , , , uint256 endBlock, , , , ) = IPool(strToken).getInfo();

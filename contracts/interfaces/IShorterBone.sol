@@ -47,7 +47,6 @@ interface IShorterBone {
     ) external;
 
     function revenue(
-        bytes32 sendAllyId,
         address tokenAddr,
         address from,
         uint256 amount,

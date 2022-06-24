@@ -180,20 +180,20 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         }
     }
 
-    function delivery(ITradingHub.BatchPositionInfo[] memory batchPositionInfos) external override onlyGrabber {
+    function deliver(ITradingHub.BatchPositionInfo[] memory batchPositionInfos) external override onlyGrabber {
         uint256 positionCount = batchPositionInfos.length;
         for (uint256 i = 0; i < positionCount; i++) {
             (, address strToken, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(batchPositionInfos[i].poolId);
             require(poolStatus == IPoolGuardian.PoolStatus.LIQUIDATING, "TradingHub: Pool is not liquidating");
             (, , , , , , , uint256 endBlock, , , , ) = IPool(strToken).getInfo();
-            require(block.number > endBlock.add(1000), "TradingHub: Pool is not delivery");
+            require(block.number > endBlock.add(1000), "TradingHub: Pool is not delivering");
             for (uint256 j = 0; j < batchPositionInfos[i].positions.length; j++) {
                 PositionInfo storage positionInfo = positionInfoMap[batchPositionInfos[i].positions[j]];
                 require(positionInfo.positionState == PositionState.OVERDRAWN, "TradingHub: Position is not overdrawn");
                 _updatePositionState(batchPositionInfos[i].positions[j], PositionState.CLOSED);
             }
             if (batchPositionInfos[i].positions.length > 0) {
-                IPool(strToken).delivery(true);
+                IPool(strToken).deliver(true);
             }
             if (_existPositionState(batchPositionInfos[i].poolId, ITradingHub.PositionState.OVERDRAWN)) break;
             poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.ENDED);

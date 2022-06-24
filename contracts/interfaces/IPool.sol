@@ -87,7 +87,7 @@ interface IPool {
 
     function batchUpdateFundingFee(address[] memory positions) external;
 
-    function delivery(bool _isLegacyLeftover) external;
+    function deliver(bool _isLegacyLeftover) external;
 
     function stableTillOut(address bidder, uint256 amount) external;
 

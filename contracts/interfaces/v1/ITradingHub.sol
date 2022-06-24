@@ -39,7 +39,7 @@ interface ITradingHub {
 
     function setBatchClosePositions(BatchPositionInfo[] memory batchPositionInfos) external;
 
-    function delivery(BatchPositionInfo[] memory batchPositionInfos) external;
+    function deliver(BatchPositionInfo[] memory batchPositionInfos) external;
 
     event PositionOpened(uint256 indexed poolId, address indexed trader, address indexed positionAddr, uint256 orderSize);
     event PositionIncreased(uint256 indexed poolId, address indexed trader, address indexed positionAddr, uint256 orderSize);

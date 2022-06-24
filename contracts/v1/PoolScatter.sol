@@ -132,7 +132,7 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
         }
     }
 
-    function delivery(bool _isLegacyLeftover) external onlyTradingHub {
+    function deliver(bool _isLegacyLeftover) external onlyTradingHub {
         isLegacyLeftover = _isLegacyLeftover;
     }
 

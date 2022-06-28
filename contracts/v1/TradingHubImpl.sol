@@ -18,6 +18,13 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
+    modifier reentrantLock(uint256 code) {
+        require(userReentrantLocks[code][msg.sender] == 0, "TradingHub: Reentrant call");
+        userReentrantLocks[code][msg.sender] = 1;
+        _;
+        userReentrantLocks[code][msg.sender] = 0;
+    }
+
     modifier onlySwapRouter(address _swapRouter) {
         require(dexCenter.entitledSwapRouters(_swapRouter), "TradingHub: Invalid SwapRouter");
         _;
@@ -33,7 +40,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         uint256 amount,
         uint256 amountOutMin,
         bytes memory path
-    ) external whenNotPaused {
+    ) external whenNotPaused reentrantLock(0) {
         PoolInfo memory pool = _getPoolInfo(poolId);
         (, address swapRouter, ) = shorterBone.getTokenInfo(address(pool.stakedToken));
 
@@ -64,18 +71,17 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         uint256 amount,
         uint256 amountInMax,
         bytes memory path
-    ) external whenNotPaused {
+    ) external whenNotPaused reentrantLock(1) {
         PoolInfo memory pool = _getPoolInfo(poolId);
         (, address swapRouter, ) = shorterBone.getTokenInfo(address(pool.stakedToken));
         require(dexCenter.entitledSwapRouters(swapRouter), "TradingHub buyCover: Invalid SwapRouter");
-        bool isSwapRouterV3 = dexCenter.isSwapRouterV3(swapRouter);
         dexCenter.checkPath(address(pool.stakedToken), address(pool.stableToken), swapRouter, path);
 
         address position = _duplicatedOpenPosition(poolId, msg.sender);
         require(position != address(0), "TradingHub: Position not found");
         require(positionBlocks[position].lastSellBlock < block.number, "TradingHub: Illegit buyCover");
 
-        bool isClosed = IPool(pool.strToken).repay(isSwapRouterV3, shorterBone.TetherToken() == address(pool.stableToken), address(dexCenter), swapRouter, position, msg.sender, amount, amountInMax, path);
+        bool isClosed = IPool(pool.strToken).repay(dexCenter.isSwapRouterV3(swapRouter), shorterBone.TetherToken() == address(pool.stableToken), address(dexCenter), swapRouter, position, msg.sender, amount, amountInMax, path);
 
         if (isClosed) {
             _updatePositionState(position, PositionState.CLOSED);
@@ -303,10 +309,5 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
     function setPriceOracle(address newPriceOracle) external isKeeper {
         require(newPriceOracle != address(0), "TradingHub: NewPriceOracle is zero address");
         priceOracle = IPriceOracle(newPriceOracle);
-    }
-
-    function setPoolRewardModel(address newPoolRewardModel) external isKeeper {
-        require(newPoolRewardModel != address(0), "TradingHub: NewPoolRewardModel is zero address");
-        poolRewardModel = IPoolRewardModel(newPoolRewardModel);
     }
 }

@@ -10,12 +10,19 @@ import "../tokens/ERC20.sol";
 contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
+    modifier reentrantLock(uint256 code) {
+        require(userReentrantLocks[code][msg.sender] == 0, "PoolGarner: Reentrant call");
+        userReentrantLocks[code][msg.sender] = 1;
+        _;
+        userReentrantLocks[code][msg.sender] = 0;
+    }
+
     modifier onlyPoolGuardian() {
         require(msg.sender == shorterBone.getAddress(AllyLibrary.POOL_GUARDIAN), "PoolGarner: Caller is not PoolGuardian");
         _;
     }
 
-    function deposit(uint256 amount) external payable whenNotPaused {
+    function deposit(uint256 amount) external payable whenNotPaused reentrantLock(100) {
         require(uint256(endBlock) > block.number && stateFlag == IPoolGuardian.PoolStatus.RUNNING, "PoolGarner: Expired pool");
         _deposit(msg.sender, amount);
         poolRewardModel.harvestByStrToken(id, msg.sender, balanceOf[msg.sender].add(amount));
@@ -24,7 +31,7 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         emit Deposit(msg.sender, id, amount);
     }
 
-    function withdraw(uint256 percent, uint256 amount) external whenNotPaused {
+    function withdraw(uint256 percent, uint256 amount) external whenNotPaused reentrantLock(101) {
         require(ITradingHub(tradingHub).isPoolWithdrawable(id), "PoolGarner: Legacy positions found");
         require(stateFlag == IPoolGuardian.PoolStatus.RUNNING || stateFlag == IPoolGuardian.PoolStatus.ENDED, "PoolGarner: Pool is liquidating");
         uint256 withdrawAmount;

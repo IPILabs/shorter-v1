@@ -49,6 +49,7 @@ contract PoolStorage is TitanCoreStorage {
         uint256 remnantAsset;
         uint256 totalFee;
     }
+    mapping(uint256 => mapping(address => uint256)) userReentrantLocks;
 
     mapping(address => uint256) public userStakedTokenAmount;
 

@@ -46,25 +46,25 @@ contract ShorterBone is ChainSchema, IShorterBone {
     /// @notice Move the token from user to ally contracts, restricted to be called by the ally contract self
     function tillIn(
         address tokenAddr,
-        address user,
+        address caller,
         bytes32 toAllyId,
         uint256 amount
     ) external override whenNotPaused onlyAlly(toAllyId) {
         if (amount == 0) return;
-        _transfer(tokenAddr, user, allyContracts[toAllyId], amount);
-        emit TillIn(toAllyId, user, tokenAddr, amount);
+        _transfer(tokenAddr, caller, allyContracts[toAllyId], amount);
+        emit TillIn(toAllyId, caller, tokenAddr, amount);
     }
 
     /// @notice Move the token from an ally contract to user, restricted to be called by the ally contract
     function tillOut(
         address tokenAddr,
         bytes32 fromAllyId,
-        address user,
+        address caller,
         uint256 amount
     ) external override whenNotPaused onlyAlly(fromAllyId) {
         if (amount == 0) return;
-        _transfer(tokenAddr, allyContracts[fromAllyId], user, amount);
-        emit TillOut(fromAllyId, user, tokenAddr, amount);
+        _transfer(tokenAddr, allyContracts[fromAllyId], caller, amount);
+        emit TillOut(fromAllyId, caller, tokenAddr, amount);
     }
 
     function poolTillIn(

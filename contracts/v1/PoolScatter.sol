@@ -8,6 +8,15 @@ import "../storage/PoolStorage.sol";
 import "../tokens/ERC20.sol";
 
 contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
+    constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
+
+    modifier reentrantLock(uint256 code) {
+        require(userReentrantLocks[code][msg.sender] == 0, "PoolScatter: Reentrant call");
+        userReentrantLocks[code][msg.sender] = 1;
+        _;
+        userReentrantLocks[code][msg.sender] = 0;
+    }
+
     modifier onlyTradingHub() {
         require(msg.sender == shorterBone.getAddress(AllyLibrary.TRADING_HUB), "PoolScatter: Caller is not TradingHub");
         _;
@@ -17,8 +26,6 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
         require(msg.sender == shorterBone.getAddress(AllyLibrary.AUCTION_HALL) || msg.sender == shorterBone.getAddress(AllyLibrary.VAULT_BUTLER), "PoolScatter: Caller is neither AuctionHall nor VaultButler");
         _;
     }
-
-    constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
     function borrow(
         bool isSwapRouterV3,
@@ -136,7 +143,7 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
         isLegacyLeftover = _isLegacyLeftover;
     }
 
-    function withdrawRemnantAsset(address position) external {
+    function withdrawRemnantAsset(address position) external reentrantLock(103) {
         PositionInfo storage positionInfo = positionInfoMap[position];
         require(msg.sender == positionInfo.trader, "PoolScatter: Caller is not the trader");
         shorterBone.poolTillOut(id, address(stableToken), msg.sender, positionInfo.remnantAsset);

@@ -59,7 +59,8 @@ contract TradingStorage is TitanCoreStorage {
     IDexCenter public dexCenter;
     IPoolGuardian public poolGuardian;
     IPriceOracle public priceOracle;
-    IPoolRewardModel public poolRewardModel;
+
+    mapping(uint256 => mapping(address => uint256)) userReentrantLocks;
 
     mapping(uint256 => address) public allPositions;
     mapping(address => mapping(uint256 => PositionCube)) public userPositions;

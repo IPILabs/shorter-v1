@@ -34,7 +34,7 @@ interface IShorterBone {
 
     function tillIn(
         address tokenAddr,
-        address user,
+        address caller,
         bytes32 toAllyId,
         uint256 amount
     ) external;
@@ -42,7 +42,7 @@ interface IShorterBone {
     function tillOut(
         address tokenAddr,
         bytes32 fromAllyId,
-        address user,
+        address caller,
         uint256 amount
     ) external;
 

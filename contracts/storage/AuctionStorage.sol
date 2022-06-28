@@ -38,13 +38,14 @@ contract AuctionStorage is TitanCoreStorage {
 
     uint256 public phase1MaxBlock;
     uint256 public auctionMaxBlock;
-    bool internal _initialized;
     address public dexCenter;
     address public ipistrToken;
     ICommittee public committee;
     IPoolGuardian public poolGuardian;
     ITradingHub public tradingHub;
     IPriceOracle public priceOracle;
+
+    mapping(uint256 => mapping(address => uint256)) userReentrantLocks;
 
     mapping(address => bytes) public phase1Ranks;
     mapping(address => Phase1Info) public phase1Infos;

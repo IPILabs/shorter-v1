@@ -19,18 +19,25 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
     using SafeToken for ISRC20;
     using Path for bytes;
 
+    constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
+
+    modifier reentrantLock(uint256 code) {
+        require(userReentrantLocks[code][msg.sender] == 0, "TradingHub: Reentrant call");
+        userReentrantLocks[code][msg.sender] = 1;
+        _;
+        userReentrantLocks[code][msg.sender] = 0;
+    }
+
     modifier onlyRuler() {
         require(committee.isRuler(msg.sender), "AuctionHall: Caller is not a ruler");
         _;
     }
 
-    constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
-
     function bidTanto(
         address position,
         uint256 bidSize,
         uint256 priorityFee
-    ) external payable whenNotPaused onlyRuler {
+    ) external payable whenNotPaused onlyRuler reentrantLock(1000) {
         (, address stakedToken, , uint256 stakedTokenDecimals, uint256 stableTokenDecimals, uint256 totalSize, uint256 unsettledCash, uint256 closingBlock, ITradingHub.PositionState positionState) = _getPositionInfo(position);
 
         require(bidSize > 0 && bidSize <= totalSize, "AuctionHall: Invalid bidSize");
@@ -61,20 +68,13 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         emit BidTanto(position, msg.sender, bidSize, priorityFee);
     }
 
-    function bidKatana(address position, bytes memory path) external whenNotPaused onlyRuler {
-        (, , , uint256 stakedTokenDecimals, uint256 stableTokenDecimals, uint256 totalSize, uint256 unsettledCash, uint256 closingBlock, ITradingHub.PositionState positionState) = _getPositionInfo(position);
-
+    function bidKatana(address position, bytes memory path) external whenNotPaused onlyRuler reentrantLock(1001) {
+        (, , , ITradingHub.PositionState positionState) = tradingHub.getPositionInfo(position);
         require(positionState == ITradingHub.PositionState.CLOSING, "AuctionHall: Not a closing position");
-        require(block.number.sub(closingBlock) > phase1MaxBlock && block.number.sub(closingBlock) <= auctionMaxBlock, "AuctionHall: Katana is over");
-        Phase1Info storage phase1Info = phase1Infos[position];
-        require(!phase1Info.flag, "AuctionHall: Position closed");
 
         Phase2Info storage phase2Info = phase2Infos[position];
-        uint256 decimalDiff = 10**(stakedTokenDecimals.add(18).sub(stableTokenDecimals));
-        uint256 phase1UsedUnsettledCash = phase1Info.bidSize.mul(phase1Info.liquidationPrice).div(decimalDiff);
-        phase2Info.debtSize = totalSize.sub(phase1Info.bidSize);
-        uint256 estimatePhase2UseCash = unsettledCash.sub(phase1UsedUnsettledCash);
-
+        (uint256 _debtSize, uint256 estimatePhase2UseCash) = _getPhase1ResidualDebt(position);
+        phase2Info.debtSize = _debtSize;
         phase2Info.usedCash = _dexCover(position, phase2Info.debtSize, estimatePhase2UseCash, path);
         phase2Info.rulerAddr = msg.sender;
         phase2Info.flag = true;
@@ -285,7 +285,6 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         uint256 _phase1MaxBlock,
         uint256 _auctionMaxBlock
     ) external isSavior {
-        require(!_initialized, "AuctionHall: Already initialized");
         require(_dexCenter != address(0), "AuctionHall: DexCenter is zero address");
         require(_ipistrToken != address(0), "AuctionHall: IpistrToken is zero address");
         shorterBone = IShorterBone(_shorterBone);
@@ -297,7 +296,6 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         committee = ICommittee(_committee);
         phase1MaxBlock = _phase1MaxBlock;
         auctionMaxBlock = _auctionMaxBlock;
-        _initialized = true;
     }
 
     function _getPositionInfo(address position)
@@ -358,7 +356,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         (stableTokenSize, debtTokenSize, priorityFee) = _getPhase1Residues(ruler, position, remainingDebtSize, stableTokenSize, phase2Info.flag);
     }
 
-    function retrieve(address position) external whenNotPaused {
+    function retrieve(address position) external whenNotPaused reentrantLock(1002) {
         (uint256 stableTokenSize, uint256 debtTokenSize, uint256 priorityFee) = queryResidues(position, msg.sender);
         require(stableTokenSize.add(debtTokenSize).add(priorityFee) > 0, "AuctionHall: No asset to retrieve for now");
         _updateRulerAsset(position, msg.sender);
@@ -452,13 +450,14 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         }
     }
 
-    function updateBlocks(uint256 _phase1MaxBlock, uint256 _auctionMaxBlock) external isKeeper {
-        phase1MaxBlock = _phase1MaxBlock;
-        auctionMaxBlock = _auctionMaxBlock;
-    }
-
-    function setDexCenter(address newDexCenter) external isKeeper {
-        require(newDexCenter != address(0), "AuctionHall: NewDexCenter is zero address");
-        dexCenter = newDexCenter;
+    function _getPhase1ResidualDebt(address _position) internal view returns (uint256 debtSize, uint256 estimatePhase2UseCash) {
+        Phase1Info storage phase1Info = phase1Infos[_position];
+        require(!phase1Info.flag, "AuctionHall: Position closed");
+        (, , , uint256 stakedTokenDecimals, uint256 stableTokenDecimals, uint256 totalSize, uint256 unsettledCash, uint256 closingBlock, ) = _getPositionInfo(_position);
+        require(block.number.sub(closingBlock) > phase1MaxBlock && block.number.sub(closingBlock) <= auctionMaxBlock, "AuctionHall: Katana is over");
+        uint256 decimalDiff = 10**(stakedTokenDecimals.add(18).sub(stableTokenDecimals));
+        uint256 phase1UsedUnsettledCash = phase1Info.bidSize.mul(phase1Info.liquidationPrice).div(decimalDiff);
+        debtSize = totalSize.sub(phase1Info.bidSize);
+        estimatePhase2UseCash = unsettledCash.sub(phase1UsedUnsettledCash);
     }
 }

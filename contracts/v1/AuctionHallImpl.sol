@@ -117,28 +117,6 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         return currentPrice;
     }
 
-    function executePositions(
-        address[] memory closedPositions,
-        address[] memory legacyPositions,
-        bytes[] memory _phase1Ranks
-    ) external override {
-        require(msg.sender == shorterBone.getAddress(AllyLibrary.GRAB_REWARD), "AuctionHall: Caller is not Grabber");
-        uint256 legacyPositionCount = legacyPositions.length;
-        require(closedPositions.length + legacyPositionCount < 512, "AcutionHall: Tasks too heavy");
-        if (closedPositions.length > 0) {
-            require(closedPositions.length == _phase1Ranks.length, "AuctionHall: Invalid phase1Ranks");
-            verifyPhase1Ranks(closedPositions, _phase1Ranks);
-        }
-
-        for (uint256 i = 0; i < legacyPositionCount; i++) {
-            (, , uint256 closingBlock, ITradingHub.PositionState positionState) = tradingHub.getPositionInfo(legacyPositions[i]);
-            require(positionState == ITradingHub.PositionState.CLOSING, "AuctionHall: Not a closing position");
-            if ((block.number.sub(closingBlock) > auctionMaxBlock && !phase1Infos[legacyPositions[i]].flag && !phase2Infos[legacyPositions[i]].flag) || _estimatePositionState(legacyPositions[i]) == ITradingHub.PositionState.OVERDRAWN) {
-                tradingHub.updatePositionState(legacyPositions[i], ITradingHub.PositionState.OVERDRAWN);
-            }
-        }
-    }
-
     function inquire()
         external
         view

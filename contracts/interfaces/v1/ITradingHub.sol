@@ -33,13 +33,9 @@ interface ITradingHub {
 
     function updatePositionState(address position, PositionState positionState) external;
 
-    function executePositions(address[] memory positions) external;
-
     function isPoolWithdrawable(uint256 poolId) external view returns (bool);
 
     function setBatchClosePositions(BatchPositionInfo[] memory batchPositionInfos) external;
-
-    function deliver(BatchPositionInfo[] memory batchPositionInfos) external;
 
     event PositionOpened(uint256 indexed poolId, address indexed trader, address indexed positionAddr, uint256 orderSize);
     event PositionIncreased(uint256 indexed poolId, address indexed trader, address indexed positionAddr, uint256 orderSize);

@@ -48,7 +48,7 @@ contract TradingStorage is TitanCoreStorage {
         uint256 lastSellBlock;
     }
 
-    struct PositionInfo {
+    struct PositionIndex {
         uint64 poolId;
         address strToken;
         ITradingHub.PositionState positionState;
@@ -69,6 +69,6 @@ contract TradingStorage is TitanCoreStorage {
     mapping(uint256 => mapping(uint256 => address)) public poolPositions;
     mapping(uint256 => uint256) public poolPositionSize;
 
-    mapping(address => PositionInfo) public positionInfoMap;
+    mapping(address => PositionIndex) public positionInfoMap;
     mapping(address => PositionBlock) public positionBlocks;
 }

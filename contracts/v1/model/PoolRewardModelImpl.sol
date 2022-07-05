@@ -155,7 +155,7 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
             return 0;
         }
 
-        (, , , , , , , uint256 endBlock, , , uint256 stableTokenDecimals, ) = IPool(strPool).getInfo();
+        (, , , , , , , uint256 endBlock, , , uint256 stableTokenDecimals, ) = IPool(strPool).getMetaInfo();
 
         uint256 stablePoolReward = (IPool(strPool).totalTradingFee().sub(totalTradingFees[poolId])).mul(10**(uint256(18).sub(stableTokenDecimals)));
         uint256 accIpistrPerShare = pool.accIPISTRPerShare.add(_totalPendingReward(poolId, endBlock, strPool).div(_poolStakedAmount));
@@ -183,7 +183,7 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
         )
     {
         address strPool = getStrPool(poolId);
-        (address creator, , , , , , , uint256 endBlock, , , uint256 stableTokenDecimals, IPoolGuardian.PoolStatus stateFlag) = IPool(strPool).getInfo();
+        (address creator, , , , , , , uint256 endBlock, , , uint256 stableTokenDecimals, IPoolGuardian.PoolStatus stateFlag) = IPool(strPool).getMetaInfo();
         if (user != creator || stateFlag == IPoolGuardian.PoolStatus.GENESIS) {
             return (0, 0, 0);
         }
@@ -216,7 +216,7 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
         }
 
         address strPool = getStrPool(poolId);
-        (, , , , , , , uint256 endBlock, , , uint256 stableTokenDecimals, ) = IPool(strPool).getInfo();
+        (, , , , , , , uint256 endBlock, , , uint256 stableTokenDecimals, ) = IPool(strPool).getMetaInfo();
 
         uint256 ipistrPoolReward = (_totalPendingReward(poolId, endBlock, strPool).div(IPISTR_DECIMAL_SCALER)).add(totalIpistrAmount[poolId]);
         uint256 stablePoolReward = IPool(strPool).totalTradingFee().mul(10**(uint256(18).sub(stableTokenDecimals)));
@@ -261,7 +261,7 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
             return;
         }
 
-        (, , , , , , , uint256 endBlock, , , , ) = IPool(strPool).getInfo();
+        (, , , , , , , uint256 endBlock, , , , ) = IPool(strPool).getMetaInfo();
         uint256 ipistrPoolReward = _totalPendingReward(poolId, endBlock, strPool);
         uint256 stablePoolReward = IPool(strPool).totalTradingFee().sub(totalTradingFees[poolId]);
 

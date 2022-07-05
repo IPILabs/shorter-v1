@@ -88,6 +88,6 @@ contract TradingRewardModelImpl is ChainSchema, TradingRewardModelStorage, ITrad
 
     function _getStableTokenDecimals(uint256 poolId) internal view returns (address strPool, uint256 stableTokenDecimals) {
         (, strPool, ) = poolGuardian.getPoolInfo(poolId);
-        (, , , , , , , , , , stableTokenDecimals, ) = IPool(strPool).getInfo();
+        (, , , , , , , , , , stableTokenDecimals, ) = IPool(strPool).getMetaInfo();
     }
 }

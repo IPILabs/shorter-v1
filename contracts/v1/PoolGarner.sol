@@ -123,7 +123,7 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         }
     }
 
-    function getInfo()
+    function getMetaInfo()
         external
         view
         returns (

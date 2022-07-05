@@ -56,7 +56,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
             userPositions[msg.sender][userPositionSize[msg.sender]++] = PositionCube({addr: position, poolId: poolId.to64()});
             poolPositions[poolId][poolPositionSize[poolId]++] = position;
             allPositions[allPositionSize++] = position;
-            positionInfoMap[position] = PositionInfo({poolId: poolId.to64(), strToken: pool.strToken, positionState: PositionState.OPEN});
+            positionInfoMap[position] = PositionIndex({poolId: poolId.to64(), strToken: pool.strToken, positionState: PositionState.OPEN});
             positionBlocks[position].openBlock = block.number;
             emit PositionOpened(poolId, msg.sender, position, amount);
         } else {
@@ -90,7 +90,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         emit PositionDecreased(poolId, msg.sender, position, amount);
     }
 
-    function getPositionInfo(address position)
+    function getPositionState(address position)
         external
         view
         override
@@ -101,7 +101,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
             PositionState
         )
     {
-        PositionInfo storage positionInfo = positionInfoMap[position];
+        PositionIndex storage positionInfo = positionInfoMap[position];
         return (uint256(positionInfo.poolId), positionInfo.strToken, uint256(positionBlocks[position].closingBlock), positionInfo.positionState);
     }
 
@@ -121,7 +121,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
 
     function _getPoolInfo(uint256 poolId) internal view returns (PoolInfo memory poolInfo) {
         (, address strToken, ) = poolGuardian.getPoolInfo(poolId);
-        (address creator, address stakedToken, address stableToken, , uint256 leverage, uint256 durationDays, uint256 startBlock, uint256 endBlock, uint256 id, uint256 stakedTokenDecimals, uint256 stableTokenDecimals, IPoolGuardian.PoolStatus stateFlag) = IPool(strToken).getInfo();
+        (address creator, address stakedToken, address stableToken, , uint256 leverage, uint256 durationDays, uint256 startBlock, uint256 endBlock, uint256 id, uint256 stakedTokenDecimals, uint256 stableTokenDecimals, IPoolGuardian.PoolStatus stateFlag) = IPool(strToken).getMetaInfo();
         poolInfo = PoolInfo({
             creator: creator,
             stakedToken: ISRC20(stakedToken),
@@ -154,10 +154,10 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         for (uint256 i = 0; i < positionCount; i++) {
             (, address strPool, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(batchPositionInfos[i].poolId);
             require(poolStatus == IPoolGuardian.PoolStatus.RUNNING, "TradingHub: Pool is not running");
-            (, , , , , , , uint256 endBlock, , , , ) = IPool(strPool).getInfo();
+            (, , , , , , , uint256 endBlock, , , , ) = IPool(strPool).getMetaInfo();
             require(block.number > endBlock, "TradingHub: Pool is not Liquidating");
             for (uint256 j = 0; j < batchPositionInfos[i].positions.length; j++) {
-                PositionInfo storage positionInfo = positionInfoMap[batchPositionInfos[i].positions[j]];
+                PositionIndex storage positionInfo = positionInfoMap[batchPositionInfos[i].positions[j]];
                 require(positionInfo.positionState == PositionState.OPEN, "TradingHub: Position is not open");
                 _updatePositionState(batchPositionInfos[i].positions[j], PositionState.CLOSING);
             }

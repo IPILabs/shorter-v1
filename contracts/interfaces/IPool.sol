@@ -23,7 +23,7 @@ interface IPool {
 
     function list() external;
 
-    function getInfo()
+    function getMetaInfo()
         external
         view
         returns (
@@ -66,7 +66,7 @@ interface IPool {
 
     function updatePositionToAuctionHall(address position) external returns (ITradingHub.PositionState positionState);
 
-    function getPositionInfo(address position) external view returns (uint256 totalSize, uint256 unsettledCash);
+    function getPositionAssetInfo(address position) external view returns (uint256 totalSize, uint256 unsettledCash);
 
     function dexCover(
         bool isSwapRouterV3,

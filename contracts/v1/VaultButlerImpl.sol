@@ -81,9 +81,9 @@ contract VaultButlerImpl is ChainSchema, GaiaStorage, IVaultButler {
     }
 
     function _getPositionInfo(address position) internal view returns (PositionInfo memory positionInfo) {
-        (, address strToken, , ITradingHub.PositionState positionState) = tradingHub.getPositionInfo(position);
-        (, address stakedToken, address stableToken, , , , , , , uint256 stakedTokenDecimals, uint256 stableTokenDecimals, ) = IPool(strToken).getInfo();
-        (uint256 totalSize, uint256 unsettledCash) = IPool(strToken).getPositionInfo(position);
+        (, address strToken, , ITradingHub.PositionState positionState) = tradingHub. getPositionState(position);
+        (, address stakedToken, address stableToken, , , , , , , uint256 stakedTokenDecimals, uint256 stableTokenDecimals, ) = IPool(strToken).getMetaInfo();
+        (uint256 totalSize, uint256 unsettledCash) = IPool(strToken).getPositionAssetInfo(position);
         positionInfo = PositionInfo({strToken: strToken, stakedToken: stakedToken, stableToken: stableToken, stakedTokenDecimals: stakedTokenDecimals, stableTokenDecimals: stableTokenDecimals, totalSize: totalSize, unsettledCash: unsettledCash, positionState: positionState});
     }
 }

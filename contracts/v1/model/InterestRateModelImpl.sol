@@ -39,7 +39,7 @@ contract InterestRateModelImpl is ChainSchema, InterestRateModelStorage, IIntere
 
     function _getPoolInfo(uint256 _poolId) internal view returns (uint256 totalBorrowAmount_, uint256 totalStakedAmount_) {
         (, address strToken, ) = poolGuardian.getPoolInfo(_poolId);
-        (, , , address wrappedToken, , , , , , , , ) = IPool(strToken).getInfo();
+        (, , , address wrappedToken, , , , , , , , ) = IPool(strToken).getMetaInfo();
 
         totalStakedAmount_ = ISRC20(strToken).totalSupply();
         uint256 reserves = ISRC20(wrappedToken).balanceOf(strToken);

@@ -194,7 +194,7 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
         return multiplier < 5 ? uint256(3000).sub(multiplier.mul(300)) : 1500;
     }
 
-    function getPositionInfo(address position) external view returns (uint256 totalSize, uint256 unsettledCash) {
+    function getPositionAssetInfo(address position) external view returns (uint256 totalSize, uint256 unsettledCash) {
         PositionInfo storage positionInfo = positionInfoMap[position];
         return (positionInfo.totalSize, positionInfo.unsettledCash);
     }

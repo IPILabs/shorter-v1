@@ -17,7 +17,7 @@ interface ITradingHub {
         address[] positions;
     }
 
-    function getPositionInfo(address position)
+    function getPositionState(address position)
         external
         view
         returns (

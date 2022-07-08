@@ -57,6 +57,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
             poolPositions[poolId][poolPositionSize[poolId]++] = position;
             allPositions[allPositionSize++] = position;
             positionInfoMap[position] = PositionIndex({poolId: poolId.to64(), strToken: pool.strToken, positionState: PositionState.OPEN});
+            poolStatsMap[poolId].opens++;
             positionBlocks[position].openBlock = block.number;
             emit PositionOpened(poolId, msg.sender, position, amount);
         } else {
@@ -149,30 +150,6 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         return true;
     }
 
-    function setBatchClosePositions(ITradingHub.BatchPositionInfo[] memory batchPositionInfos) external override onlyGrabber {
-        uint256 positionCount = batchPositionInfos.length;
-        for (uint256 i = 0; i < positionCount; i++) {
-            (, address strPool, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(batchPositionInfos[i].poolId);
-            require(poolStatus == IPoolGuardian.PoolStatus.RUNNING, "TradingHub: Pool is not running");
-            (, , , , , , , uint256 endBlock, , , , ) = IPool(strPool).getMetaInfo();
-            require(block.number > endBlock, "TradingHub: Pool is not Liquidating");
-            for (uint256 j = 0; j < batchPositionInfos[i].positions.length; j++) {
-                PositionIndex storage positionInfo = positionInfoMap[batchPositionInfos[i].positions[j]];
-                require(positionInfo.positionState == PositionState.OPEN, "TradingHub: Position is not open");
-                _updatePositionState(batchPositionInfos[i].positions[j], PositionState.CLOSING);
-            }
-            if (batchPositionInfos[i].positions.length > 0) {
-                IPool(strPool).batchUpdateFundingFee(batchPositionInfos[i].positions);
-            }
-            if (_existPositionState(batchPositionInfos[i].poolId, ITradingHub.PositionState.OPEN)) break;
-            if (_existPositionState(batchPositionInfos[i].poolId, ITradingHub.PositionState.CLOSING) || _existPositionState(batchPositionInfos[i].poolId, ITradingHub.PositionState.OVERDRAWN)) {
-                poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.LIQUIDATING);
-            } else {
-                poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.ENDED);
-            }
-        }
-    }
-
     function updatePositionState(address position, PositionState positionState) external override {
         require(msg.sender == shorterBone.getAddress(AllyLibrary.AUCTION_HALL) || msg.sender == shorterBone.getAddress(AllyLibrary.VAULT_BUTLER), "TradingHub: Caller is neither auctionHall nor vaultButler");
         _updatePositionState(position, positionState);
@@ -188,28 +165,31 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
     }
 
     function _updatePositionState(address position, PositionState positionState) internal {
+        PositionIndex storage positionIndex = positionInfoMap[position];
+        PoolStats storage poolStats = poolStatsMap[uint256(positionIndex.poolId)];
+        if (positionIndex.positionState == PositionState.OPEN) {
+            poolStats.opens--;
+        } else if (positionIndex.positionState == PositionState.CLOSING) {
+            poolStats.closings--;
+        } else if (positionIndex.positionState == PositionState.OVERDRAWN) {
+            poolStats.overdrawns--;
+        }
+
         if (positionState == PositionState.CLOSING) {
+            poolStats.closings++;
             positionBlocks[position].closingBlock = block.number;
             emit PositionClosing(position);
         } else if (positionState == PositionState.OVERDRAWN) {
+            poolStats.overdrawns++;
             positionBlocks[position].overdrawnBlock = block.number;
             emit PositionOverdrawn(position);
         } else if (positionState == PositionState.CLOSED) {
+            poolStats.ends++;
             positionBlocks[position].closedBlock = block.number;
             emit PositionClosed(position);
         }
 
         positionInfoMap[position].positionState = positionState;
-    }
-
-    function _existPositionState(uint256 poolId, ITradingHub.PositionState positionState) internal view returns (bool) {
-        uint256 poolPosSize = poolPositionSize[poolId];
-        for (uint256 i = 0; i < poolPosSize; i++) {
-            if (positionInfoMap[poolPositions[poolId][i]].positionState == positionState) {
-                return true;
-            }
-        }
-        return false;
     }
 
     function getPositionsByAccount(address account, PositionState positionState) external view returns (address[] memory) {

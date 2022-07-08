@@ -13,14 +13,12 @@ import "./TitanCoreStorage.sol";
 import "../util/EnumerableMap.sol";
 
 contract TradingStorage is TitanCoreStorage {
-    /// @notice Info of each pool, occupies 4 slots
     struct PoolInfo {
         address creator;
-        // Staked single token contract
         ISRC20 stakedToken;
         ISRC20 stableToken;
         address strToken;
-        // Allowed max leverage
+        // Leverage
         uint256 leverage;
         // Optional if the pool is marked as never expires(perputual)
         uint256 durationDays;
@@ -31,8 +29,15 @@ contract TradingStorage is TitanCoreStorage {
         uint256 id;
         uint256 stakedTokenDecimals;
         uint256 stableTokenDecimals;
-        // Determining whether or not this pool is listed and present
+        // Listed or not
         IPoolGuardian.PoolStatus stateFlag;
+    }
+
+    struct PoolStats {
+        uint256 opens;
+        uint256 overdrawns;
+        uint256 closings;
+        uint256 ends;
     }
 
     struct PositionCube {
@@ -61,6 +66,8 @@ contract TradingStorage is TitanCoreStorage {
     IPriceOracle public priceOracle;
 
     mapping(uint256 => mapping(address => uint256)) userReentrantLocks;
+
+    mapping(uint256 => PoolStats) public poolStatsMap;
 
     mapping(uint256 => address) public allPositions;
     mapping(address => mapping(uint256 => PositionCube)) public userPositions;

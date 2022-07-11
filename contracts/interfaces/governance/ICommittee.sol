@@ -12,8 +12,6 @@ interface ICommittee {
 
     function getUserShares(address account) external view returns (uint256 totalShare, uint256 lockedShare);
 
-    function executedProposals(uint256[] memory proposalIds, uint256[] memory failedProposals) external;
-
     function getVoteProposals(address account, uint256 catagory) external view returns (uint256[] memory _forProposals, uint256[] memory _againstProposals);
 
     function getForShares(address account, uint256 proposalId) external view returns (uint256 voteShare, uint256 totalShare);

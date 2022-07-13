@@ -41,12 +41,9 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         } else {
             (withdrawAmount, burnAmount) = _getWithdrawableAmount(amount);
         }
-        bool isHastyWithdraw = stateFlag == IPoolGuardian.PoolStatus.RUNNING && uint256(poolUserUpdateBlock[msg.sender]).add(_blocksPerDay.mul(3)) > block.number;
-        if (isHastyWithdraw) {
-            _withdrawWithFee(msg.sender, withdrawAmount);
-        } else {
+
             _withdraw(msg.sender, withdrawAmount);
-        }
+
         poolRewardModel.harvestByStrToken(id, msg.sender, balanceOf[msg.sender].sub(burnAmount));
         _burn(msg.sender, burnAmount);
         poolUserUpdateBlock[msg.sender] = block.number.to64();
@@ -177,25 +174,18 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
     }
 
     function _withdraw(address account, uint256 withdrawAmount) internal {
+        uint256 revenueAmount = stateFlag == IPoolGuardian.PoolStatus.RUNNING && uint256(poolUserUpdateBlock[msg.sender]).add(_blocksPerDay.mul(3)) > block.number ? withdrawAmount.div(1000) : 0;
+        address treasury = shorterBone.getAddress(AllyLibrary.TREASURY);
+
         address _stakedToken = wrapRouter.unwrap(id, address(stakedToken), account, withdrawAmount);
+        shorterBone.poolTillOut(id, _stakedToken, treasury, revenueAmount);
+        withdrawAmount = withdrawAmount.sub(revenueAmount);
+
         if (_stakedToken == WrappedEtherAddr) {
             IWETH(WrappedEtherAddr).withdraw(withdrawAmount);
             msg.sender.transfer(withdrawAmount);
         } else {
             shorterBone.poolTillOut(id, _stakedToken, account, withdrawAmount);
-        }
-    }
-
-    function _withdrawWithFee(address account, uint256 withdrawAmount) internal {
-        address _stakedToken = wrapRouter.unwrap(id, address(stakedToken), account, withdrawAmount);
-        address treasury = shorterBone.getAddress(AllyLibrary.TREASURY);
-        uint256 revenueAmount = withdrawAmount.div(1000);
-        shorterBone.poolTillOut(id, _stakedToken, treasury, revenueAmount);
-        if (_stakedToken == WrappedEtherAddr) {
-            IWETH(WrappedEtherAddr).withdraw(withdrawAmount.sub(revenueAmount));
-            msg.sender.transfer(withdrawAmount.sub(revenueAmount));
-        } else {
-            shorterBone.poolTillOut(id, _stakedToken, account, withdrawAmount.sub(revenueAmount));
         }
     }
 

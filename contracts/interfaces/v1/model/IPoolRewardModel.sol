@@ -3,7 +3,6 @@ pragma solidity 0.6.12;
 
 import "../../IShorterBone.sol";
 import "./IRewardModel.sol";
-import "../../../libraries/AllyLibrary.sol";
 
 /// @notice Interfaces of PoolRewardModel
 interface IPoolRewardModel {

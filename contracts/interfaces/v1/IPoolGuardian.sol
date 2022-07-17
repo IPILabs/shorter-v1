@@ -2,7 +2,6 @@
 pragma solidity 0.6.12;
 
 import "../IShorterBone.sol";
-import "../../libraries/AllyLibrary.sol";
 
 /// @notice Interfaces of PoolGuardian
 interface IPoolGuardian {

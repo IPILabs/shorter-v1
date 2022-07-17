@@ -31,11 +31,11 @@ contract PoolStorage is TitanCoreStorage {
 
     ISRC20 public wrappedToken;
     IWrapRouter public wrapRouter;
-    // Determining whether or not this pool is listed and present
+    // Pool visibility
     IPoolGuardian.PoolStatus internal stateFlag;
 
     bool public isLegacyLeftover;
-    address public tradingHub;
+    ITradingHub public tradingHub;
     IPoolRewardModel public poolRewardModel;
     IPoolGuardian public poolGuardian;
     address public WrappedEtherAddr;

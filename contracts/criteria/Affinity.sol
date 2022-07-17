@@ -20,6 +20,7 @@ contract Affinity is AccessControl, IAffinity {
         require(msg.sender == SAVIOR, "Affinity: Caller is not the Savior");
         _;
     }
+
     modifier isKeeper() {
         require(hasRole(KEEPER_ROLE, msg.sender), "Affinity: Caller is not keeper");
         _;
@@ -27,11 +28,6 @@ contract Affinity is AccessControl, IAffinity {
 
     modifier isManager() {
         require(hasRole(MANAGER_ROLE, msg.sender), "Affinity: Caller is not manager");
-        _;
-    }
-
-    modifier isAlly() {
-        require(hasRole(ALLY_ROLE, msg.sender), "Affinity: Caller is not ally");
         _;
     }
 

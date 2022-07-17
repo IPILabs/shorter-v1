@@ -19,7 +19,7 @@ contract VaultStorage is TitanCoreStorage {
         uint256 stableTokenDecimals;
         uint256 totalSize;
         uint256 unsettledCash;
-        ITradingHub.PositionState positionState;
+        uint256 positionState;
     }
 
     struct LegacyInfo {

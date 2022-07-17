@@ -3,8 +3,10 @@ pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
 import "../libraries/Path.sol";
+import "../libraries/AllyLibrary.sol";
 import "../interfaces/v1/IPoolGuardian.sol";
 import "../interfaces/v1/ITradingHub.sol";
+import "../interfaces/v1/IAuctionHall.sol";
 import "../interfaces/IPool.sol";
 import "../interfaces/IDexCenter.sol";
 import "../criteria/ChainSchema.sol";
@@ -15,6 +17,7 @@ import "../util/BoringMath.sol";
 contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
     using BoringMath for uint256;
     using Path for bytes;
+    using AllyLibrary for IShorterBone;
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
@@ -27,11 +30,6 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
 
     modifier onlySwapRouter(address _swapRouter) {
         require(dexCenter.entitledSwapRouters(_swapRouter), "TradingHub: Invalid SwapRouter");
-        _;
-    }
-
-    modifier onlyGrabber() {
-        require(msg.sender == shorterBone.getAddress(AllyLibrary.GRAB_REWARD), "TradingHub: Caller is not Grabber");
         _;
     }
 
@@ -48,7 +46,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         require(path.getTokenIn() == address(pool.stakedToken) && path.getTokenOut() == address(pool.stableToken), "TradingHub: Invalid path");
         require(pool.stateFlag == IPoolGuardian.PoolStatus.RUNNING && pool.endBlock > block.number, "TradingHub: Expired pool");
 
-        uint256 estimatePrice = priceOracle.getTokenPrice(address(pool.stakedToken));
+        uint256 estimatePrice = priceOracle.getLatestMixinPrice(address(pool.stakedToken));
         require(estimatePrice.mul(amount).mul(9) < amountOutMin.mul(10**(uint256(19).add(pool.stakedTokenDecimals).sub(pool.stableTokenDecimals))), "TradingHub: Slippage too large");
         address position = _duplicatedOpenPosition(poolId, msg.sender);
         if (position == address(0)) {
@@ -56,7 +54,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
             userPositions[msg.sender][userPositionSize[msg.sender]++] = PositionCube({addr: position, poolId: poolId.to64()});
             poolPositions[poolId][poolPositionSize[poolId]++] = position;
             allPositions[allPositionSize++] = position;
-            positionInfoMap[position] = PositionIndex({poolId: poolId.to64(), strToken: pool.strToken, positionState: PositionState.OPEN});
+            positionInfoMap[position] = PositionIndex({poolId: poolId.to64(), strToken: pool.strToken, positionState: OPEN_STATE});
             poolStatsMap[poolId].opens++;
             positionBlocks[position].openBlock = block.number;
             emit PositionOpened(poolId, msg.sender, position, amount);
@@ -99,7 +97,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
             uint256,
             address,
             uint256,
-            PositionState
+            uint256
         )
     {
         PositionIndex storage positionInfo = positionInfoMap[position];
@@ -140,50 +138,90 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
     }
 
     function isPoolWithdrawable(uint256 poolId) external view override returns (bool) {
-        uint256 poolPosSize = poolPositionSize[poolId];
-        for (uint256 i = 0; i < poolPosSize; i++) {
-            if (positionInfoMap[poolPositions[poolId][i]].positionState == PositionState.OVERDRAWN) {
-                return false;
-            }
-        }
-
-        return true;
+        return poolStatsMap[poolId].overdrawns == 0;
     }
 
-    function updatePositionState(address position, PositionState positionState) external override {
-        require(msg.sender == shorterBone.getAddress(AllyLibrary.AUCTION_HALL) || msg.sender == shorterBone.getAddress(AllyLibrary.VAULT_BUTLER), "TradingHub: Caller is neither auctionHall nor vaultButler");
+    function setBatchClosePositions(ITradingHub.BatchPositionInfo[] memory batchPositionInfos) external override {
+        shorterBone.assertCaller(msg.sender, AllyLibrary.GRAB_REWARD);
+        uint256 positionCount = batchPositionInfos.length;
+        for (uint256 i = 0; i < positionCount; i++) {
+            (, address strPool, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(batchPositionInfos[i].poolId);
+            require(poolStatus == IPoolGuardian.PoolStatus.RUNNING, "TradingHub: Pool is not running");
+            (, , , , , , , uint256 endBlock, , , , ) = IPool(strPool).getMetaInfo();
+            require(block.number > endBlock, "TradingHub: Pool is not Liquidating");
+            for (uint256 j = 0; j < batchPositionInfos[i].positions.length; j++) {
+                PositionIndex storage positionInfo = positionInfoMap[batchPositionInfos[i].positions[j]];
+                require(positionInfo.positionState == OPEN_STATE, "TradingHub: Position is not open");
+                _updatePositionState(batchPositionInfos[i].positions[j], CLOSING_STATE);
+            }
+            if (batchPositionInfos[i].positions.length > 0) {
+                IPool(strPool).batchUpdateFundingFee(batchPositionInfos[i].positions);
+            }
+            if (poolStatsMap[batchPositionInfos[i].poolId].opens > 0) break;
+            if (poolStatsMap[batchPositionInfos[i].poolId].closings > 0 || poolStatsMap[batchPositionInfos[i].poolId].overdrawns > 0) {
+                poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.LIQUIDATING);
+            } else {
+                poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.ENDED);
+            }
+        }
+    }
+
+    function deliver(ITradingHub.BatchPositionInfo[] memory batchPositionInfos) external override {
+        shorterBone.assertCaller(msg.sender, AllyLibrary.GRAB_REWARD);
+        uint256 positionCount = batchPositionInfos.length;
+        for (uint256 i = 0; i < positionCount; i++) {
+            (, address strToken, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(batchPositionInfos[i].poolId);
+            require(poolStatus == IPoolGuardian.PoolStatus.LIQUIDATING, "TradingHub: Pool is not liquidating");
+            (, , , , , , , uint256 endBlock, , , , ) = IPool(strToken).getMetaInfo();
+            require(block.number > endBlock.add(1000), "TradingHub: Pool is not delivering");
+            for (uint256 j = 0; j < batchPositionInfos[i].positions.length; j++) {
+                PositionIndex storage positionInfo = positionInfoMap[batchPositionInfos[i].positions[j]];
+                require(positionInfo.positionState == OVERDRAWN_STATE, "TradingHub: Position is not overdrawn");
+                _updatePositionState(batchPositionInfos[i].positions[j], CLOSED_STATE);
+            }
+            if (batchPositionInfos[i].positions.length > 0) {
+                IPool(strToken).deliver(true);
+        }
+
+            if (poolStatsMap[batchPositionInfos[i].poolId].overdrawns > 0) break;
+            poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.ENDED);
+        }
+    }
+
+    function updatePositionState(address position, uint256 positionState) external override {
+        require(shorterBone.checkCaller(msg.sender, AllyLibrary.AUCTION_HALL) && shorterBone.checkCaller(msg.sender, AllyLibrary.VAULT_BUTLER), "TradingHub: Caller is neither AuctionHall nor VaultButler");
         _updatePositionState(position, positionState);
     }
 
     function _duplicatedOpenPosition(uint256 poolId, address user) internal view returns (address position) {
         for (uint256 i = 0; i < userPositionSize[user]; i++) {
             PositionCube storage positionCube = userPositions[user][i];
-            if (positionCube.poolId == poolId && positionInfoMap[positionCube.addr].positionState == PositionState.OPEN) {
+            if (positionCube.poolId == poolId && positionInfoMap[positionCube.addr].positionState == OPEN_STATE) {
                 return positionCube.addr;
             }
         }
     }
 
-    function _updatePositionState(address position, PositionState positionState) internal {
+    function _updatePositionState(address position, uint256 positionState) internal {
         PositionIndex storage positionIndex = positionInfoMap[position];
         PoolStats storage poolStats = poolStatsMap[uint256(positionIndex.poolId)];
-        if (positionIndex.positionState == PositionState.OPEN) {
+        if (positionIndex.positionState == OPEN_STATE) {
             poolStats.opens--;
-        } else if (positionIndex.positionState == PositionState.CLOSING) {
+        } else if (positionIndex.positionState == CLOSING_STATE) {
             poolStats.closings--;
-        } else if (positionIndex.positionState == PositionState.OVERDRAWN) {
+        } else if (positionIndex.positionState == OVERDRAWN_STATE) {
             poolStats.overdrawns--;
         }
 
-        if (positionState == PositionState.CLOSING) {
+        if (positionState == CLOSING_STATE) {
             poolStats.closings++;
             positionBlocks[position].closingBlock = block.number;
             emit PositionClosing(position);
-        } else if (positionState == PositionState.OVERDRAWN) {
+        } else if (positionState == OVERDRAWN_STATE) {
             poolStats.overdrawns++;
             positionBlocks[position].overdrawnBlock = block.number;
             emit PositionOverdrawn(position);
-        } else if (positionState == PositionState.CLOSED) {
+        } else if (positionState == CLOSED_STATE) {
             poolStats.ends++;
             positionBlocks[position].closedBlock = block.number;
             emit PositionClosed(position);
@@ -192,7 +230,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         positionInfoMap[position].positionState = positionState;
     }
 
-    function getPositionsByAccount(address account, PositionState positionState) external view returns (address[] memory) {
+    function getPositionsByAccount(address account, uint256 positionState) external view returns (address[] memory) {
         uint256 poolPosSize = userPositionSize[account];
         address[] memory posContainer = new address[](poolPosSize);
 
@@ -211,7 +249,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         return resPositions;
     }
 
-    function getPositionsByPoolId(uint256 poolId, PositionState positionState) external view override returns (address[] memory) {
+    function getPositionsByPoolId(uint256 poolId, uint256 positionState) external view override returns (address[] memory) {
         uint256 poolPosSize = poolPositionSize[poolId];
         address[] memory posContainer = new address[](poolPosSize);
 
@@ -230,7 +268,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         return resPositions;
     }
 
-    function getPositionsByState(PositionState positionState) external view override returns (address[] memory) {
+    function getPositionsByState(uint256 positionState) external view override returns (address[] memory) {
         address[] memory posContainer = new address[](allPositionSize);
 
         uint256 resPosCount;

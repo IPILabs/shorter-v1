@@ -4,14 +4,6 @@ pragma experimental ABIEncoderV2;
 
 /// @notice Interfaces of TradingHub
 interface ITradingHub {
-    enum PositionState {
-        GENESIS,
-        OPEN, //1
-        CLOSING, //2
-        OVERDRAWN, // 3
-        CLOSED // 4
-    }
-
     struct BatchPositionInfo {
         uint256 poolId;
         address[] positions;
@@ -24,14 +16,16 @@ interface ITradingHub {
             uint256 poolId,
             address strToken,
             uint256 closingBlock,
-            PositionState positionState
+            uint256 positionState
         );
 
-    function getPositionsByPoolId(uint256 poolId, PositionState positionState) external view returns (address[] memory);
+    function getPositionsByPoolId(uint256 poolId, uint256 positionState) external view returns (address[] memory);
 
-    function getPositionsByState(PositionState positionState) external view returns (address[] memory);
+    function getPositionsByState(uint256 positionState) external view returns (address[] memory);
 
-    function updatePositionState(address position, PositionState positionState) external;
+    function updatePositionState(address position, uint256 positionState) external;
+
+    function executePositions(address[] memory positions) external;
 
     function isPoolWithdrawable(uint256 poolId) external view returns (bool);
 

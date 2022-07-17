@@ -16,10 +16,10 @@ contract ChainSchema is Affinity, Pausable {
 
     constructor(address _SAVIOR) public Affinity(_SAVIOR) {}
 
-    event ChainConfigured(address indexed thisAddr, string indexed shortName, string fullName, uint256 secondsPerBlock);
+    event ChainConfigured(address indexed self, string indexed shortName, string fullName, uint256 secondsPerBlock);
 
     modifier chainReady() {
-        require(_initialized, "ChainSchema: Waiting to be configured");
+        require(_initialized, "ChainSchema: To be configured");
         _;
     }
 
@@ -27,7 +27,7 @@ contract ChainSchema is Affinity, Pausable {
         string memory shortName,
         string memory fullName,
         uint256 secondsPerBlock
-    ) external isKeeper {
+    ) external isSavior {
         require(!_initialized, "ChainSchema: Reconfiguration is not allowed");
         require(secondsPerBlock > 0, "ChainSchema: Invalid secondsPerBlock");
 

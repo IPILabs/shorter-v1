@@ -9,7 +9,5 @@ interface IPriceOracle {
         FEED_MODE
     }
 
-    function getLatestMixinPrice(address tokenAddr) external view returns (uint256 tokenPrice, uint256 decimals);
-
-    function getTokenPrice(address tokenAddr) external view returns (uint256 tokenPrice);
+    function getLatestMixinPrice(address tokenAddr) external view returns (uint256 tokenPrice);
 }

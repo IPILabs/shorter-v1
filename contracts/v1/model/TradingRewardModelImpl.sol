@@ -43,9 +43,7 @@ contract TradingRewardModelImpl is ChainSchema, TradingRewardModelStorage, ITrad
             tradingRewardDebt[poolIds[i]][trader] = tradingRewardDebt[poolIds[i]][trader].add(tradingFee);
             pendingTradingFee = pendingTradingFee.add(tradingFee);
         }
-
-        (uint256 currentPrice, uint256 tokenDecimals) = priceOracle.getLatestMixinPrice(ipistrToken);
-        currentPrice = currentPrice.mul(10**(uint256(18).sub(tokenDecimals)));
+        uint256 currentPrice = priceOracle.getLatestMixinPrice(ipistrToken);
         rewards = pendingTradingFee.mul(1e18).mul(2).div(currentPrice).div(5);
 
         if (isTrader) {
@@ -72,10 +70,7 @@ contract TradingRewardModelImpl is ChainSchema, TradingRewardModelStorage, ITrad
         for (uint256 i = 0; i < resPoolCount; i++) {
             poolIds[i] = poolContainer[i];
         }
-
-        (uint256 currentPrice, uint256 tokenDecimals) = priceOracle.getLatestMixinPrice(ipistrToken);
-        currentPrice = currentPrice.mul(10**(uint256(18).sub(tokenDecimals)));
-
+        uint256 currentPrice = priceOracle.getLatestMixinPrice(ipistrToken);
         rewards = pendingTradingFee.mul(1e18).mul(2).div(currentPrice).div(5);
     }
 

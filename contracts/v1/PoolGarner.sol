@@ -8,6 +8,8 @@ import "../storage/PoolStorage.sol";
 import "../tokens/ERC20.sol";
 
 contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
+    using AllyLibrary for IShorterBone;
+
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
     modifier reentrantLock(uint256 code) {
@@ -18,7 +20,7 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
     }
 
     modifier onlyPoolGuardian() {
-        require(msg.sender == shorterBone.getAddress(AllyLibrary.POOL_GUARDIAN), "PoolGarner: Caller is not PoolGuardian");
+        require(msg.sender == shorterBone.getPoolGuardian(), "PoolGarner: Caller is not PoolGuardian");
         _;
     }
 
@@ -32,7 +34,7 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
     }
 
     function withdraw(uint256 percent, uint256 amount) external whenNotPaused reentrantLock(101) {
-        require(ITradingHub(tradingHub).isPoolWithdrawable(id), "PoolGarner: Legacy positions found");
+        require(tradingHub.isPoolWithdrawable(id), "PoolGarner: Legacy positions found");
         require(stateFlag == IPoolGuardian.PoolStatus.RUNNING || stateFlag == IPoolGuardian.PoolStatus.ENDED, "PoolGarner: Pool is liquidating");
         uint256 withdrawAmount;
         uint256 burnAmount;
@@ -82,8 +84,8 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         address _stakedToken,
         address _stableToken,
         address _wrapRouter,
-        address _tradingHub,
-        address _poolRewardModel,
+        address _tradingHubAddr,
+        address _poolRewardModelAddr,
         uint256 _poolId,
         uint256 _leverage,
         uint256 _durationDays,
@@ -91,7 +93,7 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         address _WrappedEtherAddr
     ) external onlyPoolGuardian {
         require(_creator != address(0), "PoolGarner: Creator is zero address");
-        require(_tradingHub != address(0), "PoolGarner: TradingHub is zero address");
+        require(_tradingHubAddr != address(0), "PoolGarner: TradingHub is zero address");
         stakedToken = ISRC20(_stakedToken);
         stableToken = ISRC20(_stableToken);
         wrapRouter = IWrapRouter(_wrapRouter);
@@ -105,8 +107,8 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         _name = string(abi.encodePacked("Shorter Pool ", stakedToken.name()));
         _symbol = string(abi.encodePacked("str", stakedToken.symbol()));
         _decimals = stakedTokenDecimals;
-        tradingHub = _tradingHub;
-        poolRewardModel = IPoolRewardModel(_poolRewardModel);
+        tradingHub = ITradingHub(_tradingHubAddr);
+        poolRewardModel = IPoolRewardModel(_poolRewardModelAddr);
         _blocksPerDay = __blocksPerDay;
         WrappedEtherAddr = _WrappedEtherAddr;
         stakedToken.approve(address(shorterBone), uint256(0) - 1);
@@ -175,7 +177,7 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
 
     function _withdraw(address account, uint256 withdrawAmount) internal {
         uint256 revenueAmount = stateFlag == IPoolGuardian.PoolStatus.RUNNING && uint256(poolUserUpdateBlock[msg.sender]).add(_blocksPerDay.mul(3)) > block.number ? withdrawAmount.div(1000) : 0;
-        address treasury = shorterBone.getAddress(AllyLibrary.TREASURY);
+        address treasury = shorterBone.getModule(AllyLibrary.TREASURY);
 
         address _stakedToken = wrapRouter.unwrap(id, address(stakedToken), account, withdrawAmount);
         shorterBone.poolTillOut(id, _stakedToken, treasury, revenueAmount);

@@ -3,7 +3,9 @@ pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
 import "../libraries/AllyLibrary.sol";
+import "../interfaces/v1/IPoolGuardian.sol";
 import "../interfaces/governance/ICommittee.sol";
+import "../interfaces/v1/model/IGovRewardModel.sol";
 import "../criteria/ChainSchema.sol";
 import "../storage/CommitteStorage.sol";
 import "../util/BoringMath.sol";
@@ -11,6 +13,7 @@ import "../util/BoringMath.sol";
 contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
     using BoringMath for uint256;
     using EnumerableSet for EnumerableSet.UintSet;
+    using AllyLibrary for IShorterBone;
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
@@ -33,7 +36,7 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
         require(amount <= spendableBalanceOf, "Committee: Insufficient amount");
 
         shorterBone.tillIn(address(ipistrToken), msg.sender, AllyLibrary.COMMITTEE, amount);
-        AllyLibrary.getGovRewardModel(shorterBone).harvest(msg.sender);
+        IGovRewardModel(shorterBone.getGovRewardModel()).harvest(msg.sender);
 
         RulerData storage rulerData = _rulerDataMap[msg.sender];
         rulerData.stakedAmount = rulerData.stakedAmount.add(amount);
@@ -47,7 +50,7 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
         RulerData storage rulerData = _rulerDataMap[msg.sender];
         require(rulerData.stakedAmount >= rulerData.voteShareLocked.add(amount), "Committee: Insufficient amount");
 
-        AllyLibrary.getGovRewardModel(shorterBone).harvest(msg.sender);
+        IGovRewardModel(shorterBone.getGovRewardModel()).harvest(msg.sender);
 
         rulerData.stakedAmount = rulerData.stakedAmount.sub(amount);
         totalIpistrStakedShare = totalIpistrStakedShare.sub(amount);
@@ -63,7 +66,7 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
         uint256 _leverage,
         uint256 _durationDays
     ) external chainReady whenNotPaused {
-        address WrappedEtherAddr = AllyLibrary.getPoolGuardian(shorterBone).WrappedEtherAddr();
+        address WrappedEtherAddr = IPoolGuardian(shorterBone.getPoolGuardian()).WrappedEtherAddr();
         require(_stakedTokenAddr != WrappedEtherAddr, "Committee: Invalid stakedToken");
         if (address(_stakedTokenAddr) == address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE)) {
             _stakedTokenAddr = WrappedEtherAddr;
@@ -75,7 +78,7 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
         require(proposalGallery[proposalCount].startBlock == 0, "Committee: Existing proposal found");
         proposalIds.push(proposalCount);
         shorterBone.revenue(address(ipistrToken), msg.sender, proposalFee, IShorterBone.IncomeType.PROPOSAL_FEE);
-        AllyLibrary.getPoolGuardian(shorterBone).addPool(_stakedTokenAddr, stableToken, msg.sender, _leverage, _durationDays, proposalCount);
+        IPoolGuardian(shorterBone.getPoolGuardian()).addPool(_stakedTokenAddr, stableToken, msg.sender, _leverage, _durationDays, proposalCount);
 
         proposalGallery[proposalCount] = Proposal({id: uint32(proposalCount), proposer: msg.sender, catagory: 1, startBlock: block.number.to64(), endBlock: block.number.add(blocksPerDay().mul(maxVotingDays)).to64(), forShares: 0, againstShares: 0, status: ProposalStatus.Active, displayable: true});
         poolMetersMap[proposalCount] = PoolMeters({tokenContract: _stakedTokenAddr, leverage: _leverage.to32(), durationDays: _durationDays.to32()});

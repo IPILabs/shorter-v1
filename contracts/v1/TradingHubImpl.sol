@@ -83,7 +83,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         bool isClosed = IPool(pool.strToken).repay(dexCenter.isSwapRouterV3(swapRouter), shorterBone.TetherToken() == address(pool.stableToken), address(dexCenter), swapRouter, position, msg.sender, amount, amountInMax, path);
 
         if (isClosed) {
-            _updatePositionState(position, PositionState.CLOSED);
+            _updatePositionState(position, CLOSED_STATE);
         }
 
         emit PositionDecreased(poolId, msg.sender, position, amount);
@@ -141,53 +141,6 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         return poolStatsMap[poolId].overdrawns == 0;
     }
 
-    function setBatchClosePositions(ITradingHub.BatchPositionInfo[] memory batchPositionInfos) external override {
-        shorterBone.assertCaller(msg.sender, AllyLibrary.GRAB_REWARD);
-        uint256 positionCount = batchPositionInfos.length;
-        for (uint256 i = 0; i < positionCount; i++) {
-            (, address strPool, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(batchPositionInfos[i].poolId);
-            require(poolStatus == IPoolGuardian.PoolStatus.RUNNING, "TradingHub: Pool is not running");
-            (, , , , , , , uint256 endBlock, , , , ) = IPool(strPool).getMetaInfo();
-            require(block.number > endBlock, "TradingHub: Pool is not Liquidating");
-            for (uint256 j = 0; j < batchPositionInfos[i].positions.length; j++) {
-                PositionIndex storage positionInfo = positionInfoMap[batchPositionInfos[i].positions[j]];
-                require(positionInfo.positionState == OPEN_STATE, "TradingHub: Position is not open");
-                _updatePositionState(batchPositionInfos[i].positions[j], CLOSING_STATE);
-            }
-            if (batchPositionInfos[i].positions.length > 0) {
-                IPool(strPool).batchUpdateFundingFee(batchPositionInfos[i].positions);
-            }
-            if (poolStatsMap[batchPositionInfos[i].poolId].opens > 0) break;
-            if (poolStatsMap[batchPositionInfos[i].poolId].closings > 0 || poolStatsMap[batchPositionInfos[i].poolId].overdrawns > 0) {
-                poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.LIQUIDATING);
-            } else {
-                poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.ENDED);
-            }
-        }
-    }
-
-    function deliver(ITradingHub.BatchPositionInfo[] memory batchPositionInfos) external override {
-        shorterBone.assertCaller(msg.sender, AllyLibrary.GRAB_REWARD);
-        uint256 positionCount = batchPositionInfos.length;
-        for (uint256 i = 0; i < positionCount; i++) {
-            (, address strToken, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(batchPositionInfos[i].poolId);
-            require(poolStatus == IPoolGuardian.PoolStatus.LIQUIDATING, "TradingHub: Pool is not liquidating");
-            (, , , , , , , uint256 endBlock, , , , ) = IPool(strToken).getMetaInfo();
-            require(block.number > endBlock.add(1000), "TradingHub: Pool is not delivering");
-            for (uint256 j = 0; j < batchPositionInfos[i].positions.length; j++) {
-                PositionIndex storage positionInfo = positionInfoMap[batchPositionInfos[i].positions[j]];
-                require(positionInfo.positionState == OVERDRAWN_STATE, "TradingHub: Position is not overdrawn");
-                _updatePositionState(batchPositionInfos[i].positions[j], CLOSED_STATE);
-            }
-            if (batchPositionInfos[i].positions.length > 0) {
-                IPool(strToken).deliver(true);
-        }
-
-            if (poolStatsMap[batchPositionInfos[i].poolId].overdrawns > 0) break;
-            poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.ENDED);
-        }
-    }
-
     function updatePositionState(address position, uint256 positionState) external override {
         require(shorterBone.checkCaller(msg.sender, AllyLibrary.AUCTION_HALL) && shorterBone.checkCaller(msg.sender, AllyLibrary.VAULT_BUTLER), "TradingHub: Caller is neither AuctionHall nor VaultButler");
         _updatePositionState(position, positionState);
@@ -216,6 +169,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         if (positionState == CLOSING_STATE) {
             poolStats.closings++;
             positionBlocks[position].closingBlock = block.number;
+            IAuctionHall(shorterBone.getAuctionHall()).initAuctionPosition(position, positionInfoMap[position].strToken, block.number);
             emit PositionClosing(position);
         } else if (positionState == OVERDRAWN_STATE) {
             poolStats.overdrawns++;

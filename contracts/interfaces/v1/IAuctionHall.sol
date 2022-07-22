@@ -20,6 +20,12 @@ interface IAuctionHall {
             bytes[] memory _phase1Ranks
         );
 
+    function initAuctionPosition(
+        address position,
+        address strPool,
+        uint256 closingBlock
+    ) external;
+
     // Events
     event AuctionInitiated(address indexed positionAddr);
     event BidTanto(address indexed positionAddr, address indexed ruler, uint256 bidSize, uint256 priorityFee);

@@ -64,7 +64,7 @@ interface IPool {
         bytes memory path
     ) external returns (bool isClosed);
 
-    function updatePositionToAuctionHall(address position) external returns (ITradingHub.PositionState positionState);
+    function updatePositionToAuctionHall(address position) external returns (uint256 positionState);
 
     function getPositionAssetInfo(address position) external view returns (uint256 totalSize, uint256 unsettledCash);
 
@@ -99,5 +99,5 @@ interface IPool {
 
     function currentRoundTradingFeeOf(address trader) external view returns (uint256);
 
-    function estimatePositionState(uint256 currentPrice, address position) external view returns (ITradingHub.PositionState);
+    function estimatePositionState(uint256 currentPrice, address position) external view returns (uint256);
 }

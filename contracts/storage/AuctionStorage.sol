@@ -36,10 +36,22 @@ contract AuctionStorage is TitanCoreStorage {
         uint256 priorityFee;
     }
 
+    struct AuctionPositonInfo {
+        address strPool;
+        address stakedToken;
+        address stableToken;
+        uint256 closingBlock;
+        uint256 totalSize;
+        uint256 unsettledCash;
+        uint256 stakedTokenDecimals;
+        uint256 stableTokenDecimals;
+    }
+
     uint256 public phase1MaxBlock;
     uint256 public auctionMaxBlock;
     address public dexCenter;
     address public ipistrToken;
+    address public WrappedEtherAddr;
     ICommittee public committee;
     IPoolGuardian public poolGuardian;
     ITradingHub public tradingHub;
@@ -53,4 +65,5 @@ contract AuctionStorage is TitanCoreStorage {
 
     /// @notice { Position => BidItem[] } During Phase 1
     mapping(address => BidItem[]) public allPhase1BidRecords;
+    mapping(address => AuctionPositonInfo) public auctionPositonInfoMap;
 }

@@ -2,9 +2,10 @@
 pragma solidity 0.6.12;
 
 import "../libraries/AllyLibrary.sol";
+import "../interfaces/IShorterBone.sol";
 import "../interfaces/v1/IVaultButler.sol";
 import "../interfaces/v1/ITradingHub.sol";
-import "../interfaces/IShorterBone.sol";
+import "../interfaces/v1/IPoolGuardian.sol";
 import "../interfaces/IPool.sol";
 import "../interfaces/IWETH.sol";
 import "../criteria/ChainSchema.sol";
@@ -14,6 +15,7 @@ import "../util/BoringMath.sol";
 /// @notice Butler serves the vaults
 contract VaultButlerImpl is ChainSchema, GaiaStorage, IVaultButler {
     using BoringMath for uint256;
+    using AllyLibrary for IShorterBone;
 
     modifier onlyRuler() {
         require(committee.isRuler(msg.sender), "VaultButler: Caller is not ruler");
@@ -33,7 +35,7 @@ contract VaultButlerImpl is ChainSchema, GaiaStorage, IVaultButler {
         require(bidSize > 0 && bidSize <= positionInfo.totalSize.sub(legacyInfo.bidSize), "VaultButler: Invalid bidSize");
         uint256 bidPrice = _priceOfLegacy(positionInfo);
         uint256 usedCash = bidSize.mul(bidPrice).div(10**(positionInfo.stakedTokenDecimals.add(18).sub(positionInfo.stableTokenDecimals)));
-        address _WrappedEtherAddr = AllyLibrary.getPoolGuardian(shorterBone).WrappedEtherAddr();
+        address _WrappedEtherAddr = IPoolGuardian(shorterBone.getPoolGuardian()).WrappedEtherAddr();
         if (positionInfo.stakedToken == _WrappedEtherAddr) {
             require(bidSize == msg.value, "VaultButler: Invalid amount");
             IWETH(positionInfo.stakedToken).deposit{value: msg.value}();
@@ -46,7 +48,7 @@ contract VaultButlerImpl is ChainSchema, GaiaStorage, IVaultButler {
 
         if (legacyInfo.bidSize == positionInfo.totalSize) {
             shorterBone.tillOut(positionInfo.stakedToken, AllyLibrary.VAULT_BUTLER, positionInfo.strToken, positionInfo.totalSize);
-            tradingHub.updatePositionState(position, ITradingHub.PositionState.CLOSED);
+            tradingHub.updatePositionState(position, 8);
             IPool(positionInfo.strToken).auctionClosed(position, 0, 0, legacyInfo.usedCash);
         }
 
@@ -54,10 +56,9 @@ contract VaultButlerImpl is ChainSchema, GaiaStorage, IVaultButler {
     }
 
     function _priceOfLegacy(PositionInfo memory positionInfo) internal view returns (uint256) {
-        require(positionInfo.positionState == ITradingHub.PositionState.OVERDRAWN, "VaultButler: Not a legacy position");
-
-        (uint256 currentPrice, uint256 decimals) = priceOracle.getLatestMixinPrice(positionInfo.stakedToken);
-        currentPrice = currentPrice.mul(10**(uint256(18).sub(decimals))).mul(102).div(100);
+        require(positionInfo.positionState == 4, "VaultButler: Not a legacy position");
+        uint256 currentPrice = priceOracle.getLatestMixinPrice(positionInfo.stakedToken);
+        currentPrice = currentPrice.mul(102).div(100);
 
         uint256 overdrawnPrice = positionInfo.unsettledCash.mul(10**(positionInfo.stakedTokenDecimals.add(18).sub(positionInfo.stableTokenDecimals))).div(positionInfo.totalSize);
         if (currentPrice > overdrawnPrice) {
@@ -81,7 +82,7 @@ contract VaultButlerImpl is ChainSchema, GaiaStorage, IVaultButler {
     }
 
     function _getPositionInfo(address position) internal view returns (PositionInfo memory positionInfo) {
-        (, address strToken, , ITradingHub.PositionState positionState) = tradingHub. getPositionState(position);
+        (, address strToken, , uint256 positionState) = tradingHub.getPositionState(position);
         (, address stakedToken, address stableToken, , , , , , , uint256 stakedTokenDecimals, uint256 stableTokenDecimals, ) = IPool(strToken).getMetaInfo();
         (uint256 totalSize, uint256 unsettledCash) = IPool(strToken).getPositionAssetInfo(position);
         positionInfo = PositionInfo({strToken: strToken, stakedToken: stakedToken, stableToken: stableToken, stakedTokenDecimals: stakedTokenDecimals, stableTokenDecimals: stableTokenDecimals, totalSize: totalSize, unsettledCash: unsettledCash, positionState: positionState});

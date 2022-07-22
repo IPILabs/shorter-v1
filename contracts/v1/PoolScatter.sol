@@ -2,12 +2,17 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
+import "../libraries/AllyLibrary.sol";
+import "../../contracts/oracles/IPriceOracle.sol";
+import "../interfaces/v1/model/IInterestRateModel.sol";
 import "../interfaces/IDexCenter.sol";
 import "../criteria/ChainSchema.sol";
 import "../storage/PoolStorage.sol";
 import "../tokens/ERC20.sol";
 
 contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
+    using AllyLibrary for IShorterBone;
+
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
     modifier reentrantLock(uint256 code) {
@@ -18,12 +23,12 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
     }
 
     modifier onlyTradingHub() {
-        require(msg.sender == shorterBone.getAddress(AllyLibrary.TRADING_HUB), "PoolScatter: Caller is not TradingHub");
+        shorterBone.assertCaller(msg.sender, AllyLibrary.TRADING_HUB);
         _;
     }
 
     modifier onlyAuction() {
-        require(msg.sender == shorterBone.getAddress(AllyLibrary.AUCTION_HALL) || msg.sender == shorterBone.getAddress(AllyLibrary.VAULT_BUTLER), "PoolScatter: Caller is neither AuctionHall nor VaultButler");
+        require(shorterBone.checkCaller(msg.sender, AllyLibrary.AUCTION_HALL) && shorterBone.checkCaller(msg.sender, AllyLibrary.VAULT_BUTLER), "PoolScatter: Caller is neither AuctionHall nor VaultButler");
         _;
     }
 
@@ -124,9 +129,8 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
         uint256 amountInMax,
         bytes memory path
     ) external returns (uint256 amountIn) {
-        address auctionHall = shorterBone.getAddress(AllyLibrary.AUCTION_HALL);
-        require(msg.sender == auctionHall, "PoolScatter: Caller is not AuctionHall");
-        amountIn = _buyCover(dexCenter, isSwapRouterV3, isTetherToken, amountOut, amountInMax, swapRouter, auctionHall, path);
+        shorterBone.assertCaller(msg.sender, AllyLibrary.AUCTION_HALL);
+        amountIn = _buyCover(dexCenter, isSwapRouterV3, isTetherToken, amountOut, amountInMax, swapRouter, shorterBone.getAuctionHall(), path);
     }
 
     function stableTillOut(address bidder, uint256 amount) external onlyAuction {
@@ -150,12 +154,11 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
         positionInfo.remnantAsset = 0;
     }
 
-    function updatePositionToAuctionHall(address position) external onlyTradingHub returns (ITradingHub.PositionState positionState) {
-        (uint256 currentPrice, uint256 tokenDecimals) = AllyLibrary.getPriceOracle(shorterBone).getLatestMixinPrice(address(stakedToken));
-        currentPrice = currentPrice.mul(10**(uint256(18).sub(tokenDecimals)));
+    function updatePositionToAuctionHall(address position) external onlyTradingHub returns (uint256 positionState) {
+        uint256 currentPrice = IPriceOracle(shorterBone.getPriceOracle()).getLatestMixinPrice(address(stakedToken));
 
         positionState = estimatePositionState(currentPrice, position);
-        if (positionState != ITradingHub.PositionState.OPEN) {
+        if (positionState != 1) {
             _updateFunding(position);
         }
     }
@@ -185,7 +188,7 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
     function getFundingFee(address position) public view returns (uint256 totalFee_) {
         PositionInfo storage positionInfo = positionInfoMap[position];
         uint256 blockSpan = block.number.sub(uint256(positionInfo.lastestFeeBlock));
-        uint256 fundingFeePerBlock = AllyLibrary.getInterestRateModel(shorterBone).getBorrowRate(id, positionInfo.unsettledCash.mul(uint256(leverage)).div(uint256(leverage).add(1)));
+        uint256 fundingFeePerBlock = IInterestRateModel(shorterBone.getInterestRateModel()).getBorrowRate(id, positionInfo.unsettledCash.mul(uint256(leverage)).div(uint256(leverage).add(1)));
         totalFee_ = fundingFeePerBlock.mul(blockSpan).div(1e6);
     }
 
@@ -199,19 +202,19 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
         return (positionInfo.totalSize, positionInfo.unsettledCash);
     }
 
-    function estimatePositionState(uint256 currentPrice, address position) public view returns (ITradingHub.PositionState) {
+    function estimatePositionState(uint256 currentPrice, address position) public view returns (uint256) {
         PositionInfo storage positionInfo = positionInfoMap[position];
         uint256 availableAmount = positionInfo.unsettledCash.sub(getFundingFee(position));
         uint256 overdrawnPrice = availableAmount.mul(10**(uint256(stakedTokenDecimals).add(18).sub(uint256(stableTokenDecimals)))).div(positionInfo.totalSize);
         if (currentPrice > overdrawnPrice) {
-            return ITradingHub.PositionState.OVERDRAWN;
+            return 4;
         }
         uint256 liquidationPrice = overdrawnPrice.mul(uint256(leverage).mul(100).add(70)).div(uint256(leverage).mul(100).add(100));
         if (currentPrice > liquidationPrice) {
-            return ITradingHub.PositionState.CLOSING;
+            return 2;
         }
 
-        return ITradingHub.PositionState.OPEN;
+        return 1;
     }
 
     function _updateFunding(address position) internal {

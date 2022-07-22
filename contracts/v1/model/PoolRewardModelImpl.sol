@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
 
+import "../../libraries/AllyLibrary.sol";
 import "../../interfaces/v1/model/IPoolRewardModel.sol";
 import "../../interfaces/IPool.sol";
 import "../../criteria/ChainSchema.sol";
@@ -165,8 +166,7 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
         RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
 
         uint256 pendingTradingRewards = _userStakedAmount.mul(accStablePerShare).div(IPISTR_DECIMAL_SCALER).sub(rewardDebt.poolStableRewardDebt);
-        (uint256 currentPrice, uint256 tokenDecimals) = priceOracle.getLatestMixinPrice(ipistrToken);
-        currentPrice = currentPrice.mul(10**(uint256(18).sub(tokenDecimals)));
+        uint256 currentPrice = priceOracle.getLatestMixinPrice(ipistrToken);
         pendingTradingRewards = pendingTradingRewards.mul(1e18).mul(2).div(currentPrice).div(5);
 
         rewards = _userStakedAmount.mul(accIpistrPerShare).div(IPISTR_DECIMAL_SCALER).sub(rewardDebt.poolIpistrRewardDebt);
@@ -194,9 +194,7 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
         RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
         rewards0 = ipistrPoolReward.mul(3).div(100) > rewardDebt.creatorIpistrRewardDebt ? (ipistrPoolReward.mul(3).div(100)).sub(rewardDebt.creatorIpistrRewardDebt) : 0;
         rewards1 = stablePoolReward.mul(3).div(100) > rewardDebt.creatorStableRewardDebt ? (stablePoolReward.mul(3).div(100)).sub(rewardDebt.creatorStableRewardDebt) : 0;
-
-        (uint256 currentPrice, uint256 tokenDecimals) = priceOracle.getLatestMixinPrice(ipistrToken);
-        currentPrice = currentPrice.mul(10**(uint256(18).sub(tokenDecimals)));
+        uint256 currentPrice = priceOracle.getLatestMixinPrice(ipistrToken);
         rewards = rewards0.add(rewards1.mul(1e18).div(currentPrice));
     }
 
@@ -224,9 +222,7 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
         RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
         rewards0 = ipistrPoolReward.mul(voteShare).div(totalShare).div(200) > rewardDebt.voterIpistrRewardDebt ? (ipistrPoolReward.mul(voteShare).div(totalShare).div(200)).sub(rewardDebt.voterIpistrRewardDebt) : 0;
         rewards1 = stablePoolReward.mul(voteShare).div(totalShare).div(200) > rewardDebt.voterStableRewardDebt ? (stablePoolReward.mul(voteShare).div(totalShare).div(200)).sub(rewardDebt.voterStableRewardDebt) : 0;
-
-        (uint256 currentPrice, uint256 tokenDecimals) = priceOracle.getLatestMixinPrice(ipistrToken);
-        currentPrice = currentPrice.mul(10**(uint256(18).sub(tokenDecimals)));
+        uint256 currentPrice = priceOracle.getLatestMixinPrice(ipistrToken);
         rewards = rewards0.add(rewards1.mul(1e18).div(currentPrice));
     }
 

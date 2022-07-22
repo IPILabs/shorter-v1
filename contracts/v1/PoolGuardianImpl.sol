@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
 
+import "../libraries/AllyLibrary.sol";
 import "../interfaces/IPool.sol";
+import "../interfaces/IShorterFactory.sol";
 import "../interfaces/v1/IWrapRouter.sol";
 import "../criteria/ChainSchema.sol";
 import "../storage/TheiaStorage.sol";
@@ -9,11 +11,12 @@ import "../util/BoringMath.sol";
 
 contract PoolGuardianImpl is ChainSchema, TheiaStorage, IPoolGuardian {
     using BoringMath for uint256;
+    using AllyLibrary for IShorterBone;
 
     address public override WrappedEtherAddr;
 
     modifier onlyCommittee() {
-        require(msg.sender == shorterBone.getAddress(AllyLibrary.COMMITTEE), "PoolGuardian: Caller is not Committee");
+        shorterBone.assertCaller(msg.sender, AllyLibrary.COMMITTEE);
         _;
     }
 
@@ -45,10 +48,9 @@ contract PoolGuardianImpl is ChainSchema, TheiaStorage, IPoolGuardian {
         uint256 poolId
     ) external override onlyCommittee {
         require(_checkLeverageValid(stakedToken, leverage), "PoolGuardian: Invalid leverage");
-        address strToken = AllyLibrary.getShorterFactory(shorterBone).createStrPool(poolId, address(this));
-        address tradingHub = shorterBone.getAddress(AllyLibrary.TRADING_HUB);
-        address poolRewardModel = shorterBone.getAddress(AllyLibrary.POOL_REWARD);
-        IPool(strToken).initialize(creator, stakedToken, stableToken, wrapRouter, tradingHub, poolRewardModel, poolId, leverage, durationDays, blocksPerDay(), WrappedEtherAddr);
+        address strToken = IShorterFactory(shorterBone.getShorterFactory()).createStrPool(poolId);
+        address poolRewardModel = shorterBone.getModule(AllyLibrary.POOL_REWARD);
+        IPool(strToken).initialize(creator, stakedToken, stableToken, wrapRouter, shorterBone.getTradingHub(), poolRewardModel, poolId, leverage, durationDays, blocksPerDay(), WrappedEtherAddr);
         poolInfoMap[poolId] = PoolInfo({stakedToken: stakedToken, stableToken: stableToken, strToken: strToken, stateFlag: PoolStatus.GENESIS});
         poolIds.push(poolId);
         createPoolIds[creator].push(poolId);

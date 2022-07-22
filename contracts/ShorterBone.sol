@@ -7,6 +7,7 @@ import "./interfaces/governance/IIpistrToken.sol";
 import "./interfaces/ISRC20.sol";
 import "./interfaces/IUSDT.sol";
 import "./interfaces/IShorterBone.sol";
+import "./interfaces/v1/IPoolGuardian.sol";
 import "./interfaces/v1/ITradingHub.sol";
 import "./criteria/ChainSchema.sol";
 import "./util/BoringMath.sol";
@@ -23,7 +24,6 @@ contract ShorterBone is ChainSchema, IShorterBone {
     }
 
     bool internal mintable;
-    bool internal lockedMintable;
     uint256 public totalTokenSize;
     address public override TetherToken;
 
@@ -35,11 +35,10 @@ contract ShorterBone is ChainSchema, IShorterBone {
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {
         mintable = true;
-        lockedMintable = true;
     }
 
     modifier onlyAlly(bytes32 allyId) {
-        require(msg.sender == allyContracts[allyId], "ShorterBone: Caller is not an ally");
+        require(msg.sender == allyContracts[allyId], "ShorterBone: Caller is not the ally");
         _;
     }
 
@@ -158,11 +157,6 @@ contract ShorterBone is ChainSchema, IShorterBone {
     /// @notice Tweak the mint flag
     function setMintState(bool _flag) external isKeeper {
         mintable = _flag;
-    }
-
-    /// @notice Tweak the locked mint flag
-    function setLockedMintState(bool _flag) external isKeeper {
-        lockedMintable = _flag;
     }
 
     function addTokenWhiteList(

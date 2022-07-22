@@ -25,8 +25,6 @@ interface ITradingHub {
 
     function updatePositionState(address position, uint256 positionState) external;
 
-    function executePositions(address[] memory positions) external;
-
     function isPoolWithdrawable(uint256 poolId) external view returns (bool);
 
     event PositionOpened(uint256 indexed poolId, address indexed trader, address indexed positionAddr, uint256 orderSize);

@@ -4,6 +4,7 @@ pragma solidity 0.6.12;
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "../../libraries/AllyLibrary.sol";
 import "../../interfaces/IShorterBone.sol";
+import "../../interfaces/governance/ICommittee.sol";
 import "../../interfaces/v1/model/IGovRewardModel.sol";
 import "../../criteria/ChainSchema.sol";
 import "../../storage/model/GovRewardModelStorage.sol";

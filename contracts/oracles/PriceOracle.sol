@@ -37,21 +37,19 @@ contract PriceOracle is IPriceOracle, Affinity {
     }
 
     /// @notice Get lastest USD price of one specified token, use spare price feeder first
-    function getLatestMixinPrice(address tokenAddr) external view override returns (uint256 tokenPrice, uint256 decimals) {
-        uint256 _tokenPrice = getTokenPrice(tokenAddr);
-
-        (tokenPrice, decimals) = OracleLibrary.getFormatPrice(_tokenPrice);
-    }
-
-    function getTokenPrice(address tokenAddr) public view override returns (uint256 tokenPrice) {
-        if (priceOracleModeMap[tokenAddr] == PriceOracleMode.CHAINLINK_MODE) {
-            tokenPrice = _getChainLinkPrice(tokenAddr);
-        } else if (priceOracleModeMap[tokenAddr] == PriceOracleMode.DEX_MODE) {
+    function getLatestMixinPrice(address tokenAddr) external view override returns (uint256 tokenPrice) {
+        if (priceOracleModeMap[tokenAddr] == PriceOracleMode.DEX_MODE) {
             tokenPrice = _getDexPrice(tokenAddr);
+        } else if (priceOracleModeMap[tokenAddr] == PriceOracleMode.CHAINLINK_MODE) {
+            tokenPrice = _getChainLinkPrice(tokenAddr);
         } else if (priceOracleModeMap[tokenAddr] == PriceOracleMode.FEED_MODE) {
             tokenPrice = _getLatestPrice(tokenAddr);
         }
+        uint256 decimals;
+        (tokenPrice, decimals) = OracleLibrary.getFormatPrice(tokenPrice);
+        tokenPrice = tokenPrice.mul(10**(uint256(18).sub(decimals)));
     }
+
 
     function setPrice(address tokenAddr, uint256 price) external isKeeper {
         emit PriceUpdated(tokenAddr, price);

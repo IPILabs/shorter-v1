@@ -42,8 +42,8 @@ contract ShorterFactory is Affinity, IShorterFactory {
         emit Deployed(_contractAddr, salt);
     }
 
-    function setShorterBone(address shorterBoneAddr) external {
-        require(shorterBoneAddr == address(0), "ShorterFactory: shorterBone is not zero address");
+    function setShorterBone(address shorterBoneAddr) external isSavior {
+        require(shorterBoneAddr != address(0), "ShorterFactory: shorterBone is not zero address");
         shorterBone = IShorterBone(shorterBoneAddr);
     }
 }

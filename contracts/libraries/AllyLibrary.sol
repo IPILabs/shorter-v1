@@ -37,7 +37,7 @@ library AllyLibrary {
         IShorterBone shorterBone,
         address caller,
         bytes32 moduleId
-    ) external view {
+    ) internal view {
         address addr = getModule(shorterBone, moduleId);
         require(caller == addr, "AllyCheck: Failed");
     }
@@ -46,36 +46,36 @@ library AllyLibrary {
         IShorterBone shorterBone,
         address caller,
         bytes32 moduleId
-    ) external view returns (bool) {
+    ) internal view returns (bool) {
         address addr = getModule(shorterBone, moduleId);
         return caller == addr;
     }
 
-    function getShorterFactory(IShorterBone shorterBone) external view returns (address) {
+    function getShorterFactory(IShorterBone shorterBone) internal view returns (address) {
         return getModule(shorterBone, SHORTER_FACTORY);
     }
 
-    function getAuctionHall(IShorterBone shorterBone) external view returns (address) {
+    function getAuctionHall(IShorterBone shorterBone) internal view returns (address) {
         return getModule(shorterBone, AUCTION_HALL);
     }
 
-    function getPoolGuardian(IShorterBone shorterBone) external view returns (address) {
+    function getPoolGuardian(IShorterBone shorterBone) internal view returns (address) {
         return getModule(shorterBone, POOL_GUARDIAN);
     }
 
-    function getTradingHub(IShorterBone shorterBone) external view returns (address) {
+    function getTradingHub(IShorterBone shorterBone) internal view returns (address) {
         return getModule(shorterBone, TRADING_HUB);
     }
 
-    function getPriceOracle(IShorterBone shorterBone) external view returns (address) {
+    function getPriceOracle(IShorterBone shorterBone) internal view returns (address) {
         return getModule(shorterBone, PRICE_ORACLE);
     }
 
-    function getGovRewardModel(IShorterBone shorterBone) external view returns (address) {
+    function getGovRewardModel(IShorterBone shorterBone) internal view returns (address) {
         return getModule(shorterBone, GOV_REWARD);
     }
 
-    function getInterestRateModel(IShorterBone shorterBone) external view returns (address) {
+    function getInterestRateModel(IShorterBone shorterBone) internal view returns (address) {
         return getModule(shorterBone, INTEREST_RATE);
     }
 }

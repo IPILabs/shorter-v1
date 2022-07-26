@@ -275,7 +275,8 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
 
     /// @notice Set voting period
     /// @param _maxVotingDays new maximum voting days
-    function setVotingDays(uint256 _maxVotingDays) external isKeeper {
+    function setVotingDays(uint256 _maxVotingDays) external {
+        require(msg.sender == address(this), "Committee: Caller is not Committee");
         require(_maxVotingDays > 1, "Committee: Invalid voting days");
         maxVotingDays = _maxVotingDays;
 
@@ -283,12 +284,14 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
     }
 
     /// @notice Tweak the proposal submission fee
-    function setProposalFee(uint256 _proposalFee) external isKeeper {
+    function setProposalFee(uint256 _proposalFee) external {
+        require(msg.sender == address(this), "Committee: Caller is not Committee");
         proposalFee = _proposalFee;
     }
 
     /// @notice Set the ruler threshold
-    function setRulerThreshold(uint256 newRulerThreshold) external isKeeper {
+    function setRulerThreshold(uint256 newRulerThreshold) external {
+        require(msg.sender == address(this), "Committee: Caller is not Committee");
         require(newRulerThreshold > 0 && newRulerThreshold <= 1e12, "Committee: Invalid ruler threshold");
         uint256 oldRulerThreshold = rulerThreshold;
         rulerThreshold = newRulerThreshold;

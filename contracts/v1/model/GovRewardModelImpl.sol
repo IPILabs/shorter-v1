@@ -12,6 +12,12 @@ import "../../util/BoringMath.sol";
 
 contract GovRewardModelImpl is ChainSchema, GovRewardModelStorage, IGovRewardModel {
     using BoringMath for uint256;
+    using AllyLibrary for IShorterBone;
+
+    modifier onlyCommittee() {
+        shorterBone.assertCaller(msg.sender, AllyLibrary.COMMITTEE);
+        _;
+    }
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
@@ -57,7 +63,7 @@ contract GovRewardModelImpl is ChainSchema, GovRewardModelStorage, IGovRewardMod
         _initialized = true;
     }
 
-    function setApyPoint(uint256 newApyPoint) external isKeeper {
+    function setApyPoint(uint256 newApyPoint) external onlyCommittee {
         ApyPoint = newApyPoint;
     }
 

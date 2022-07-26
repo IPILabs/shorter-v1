@@ -47,7 +47,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
     ) external payable whenNotPaused onlyRuler reentrantLock(1000) {
         require(allPhase1BidRecords[position].length < 512, "AuctionHall: Too many bids");
         uint256 positionState = _getPositionState(position);
-        require(positionState == 2, "AuctionHall: Not a closing position");
+        require(positionState == CLOSING_STATE, "AuctionHall: Not a closing position");
         AuctionPositonInfo storage auctionPositonInfo = auctionPositonInfoMap[position];
         require(block.number.sub(auctionPositonInfo.closingBlock) <= phase1MaxBlock, "AuctionHall: Tanto is over");
         require(bidSize > 0 && bidSize <= auctionPositonInfo.totalSize, "AuctionHall: Invalid bidSize");
@@ -57,12 +57,12 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
 
         {
             if (auctionPositonInfo.stakedToken == WrappedEtherAddr) {
-            require(bidSize == msg.value, "AuctionHall: Invalid amount");
+                require(bidSize == msg.value, "AuctionHall: Invalid amount");
                 IWETH(WrappedEtherAddr).deposit{value: msg.value}();
-        } else {
+            } else {
                 shorterBone.tillIn(auctionPositonInfo.stakedToken, msg.sender, AllyLibrary.AUCTION_HALL, bidSize);
-        }
-        shorterBone.tillIn(ipistrToken, msg.sender, AllyLibrary.AUCTION_HALL, priorityFee);
+            }
+            shorterBone.tillIn(ipistrToken, msg.sender, AllyLibrary.AUCTION_HALL, priorityFee);
         }
 
         if (phase1Info.bidSize >= auctionPositonInfo.totalSize) {
@@ -78,7 +78,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         uint256 positionState = _getPositionState(position);
         AuctionPositonInfo storage auctionPositonInfo = auctionPositonInfoMap[position];
         require(block.number.sub(auctionPositonInfo.closingBlock) > phase1MaxBlock && block.number.sub(auctionPositonInfo.closingBlock) <= auctionMaxBlock, "AuctionHall: Katana is over");
-        require(positionState == 2, "AuctionHall: Not a closing position");
+        require(positionState == CLOSING_STATE, "AuctionHall: Not a closing position");
         Phase1Info storage phase1Info = phase1Infos[position];
         require(!phase1Info.flag, "AuctionHall: Position closed");
 
@@ -96,6 +96,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         }
 
         _closePosition(position);
+        emit AuctionFinished(position, 2);
         emit BidKatana(position, msg.sender, phase2Info.debtSize, phase2Info.usedCash, phase2Info.dexCoverReward);
     }
 
@@ -130,7 +131,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
             bytes[] memory _phase1Ranks
         )
     {
-        address[] memory closingPositions = tradingHub.getPositionsByState(2);
+        address[] memory closingPositions = tradingHub.getPositionsByState(CLOSING_STATE);
 
         uint256 posSize = closingPositions.length;
         address[] memory closedPosContainer = new address[](posSize);
@@ -139,17 +140,16 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         uint256 resClosedPosCount;
         uint256 resAbortedPosCount;
         for (uint256 i = 0; i < posSize; i++) {
-            (, , uint256 closingBlock, ) = tradingHub.getPositionState(closingPositions[i]);
-
+            uint256 closingBlock = auctionPositonInfoMap[closingPositions[i]].closingBlock;
             if (block.number.sub(closingBlock) > phase1MaxBlock && (phase1Infos[closingPositions[i]].flag)) {
                 closedPosContainer[resClosedPosCount++] = closingPositions[i];
             } else if ((block.number.sub(closingBlock) > auctionMaxBlock && !phase1Infos[closingPositions[i]].flag && !phase2Infos[closingPositions[i]].flag)) {
                 abortedPosContainer[resAbortedPosCount++] = closingPositions[i];
             } else {
                 uint256 positionState = _estimatePositionState(closingPositions[i]);
-                if (positionState == 4) {
+                if (positionState == OVERDRAWN_STATE) {
                     abortedPosContainer[resAbortedPosCount++] = closingPositions[i];
-                } else if (positionState == 8) {
+                } else if (positionState == CLOSED_STATE) {
                     closedPosContainer[resClosedPosCount++] = closingPositions[i];
                 }
             }
@@ -171,9 +171,9 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
     function _estimatePositionState(address position) internal view returns (uint256 positionState) {
         (uint256 currentPrice, uint256 overdrawnPrice) = _estimatePositionPrice(position);
         if (currentPrice > overdrawnPrice && phase1Infos[position].flag) {
-            return 8;
+            return CLOSED_STATE;
         }
-        positionState = currentPrice > overdrawnPrice ? 4 : 2;
+        positionState = currentPrice > overdrawnPrice ? OVERDRAWN_STATE : CLOSING_STATE;
     }
 
     function _estimatePositionPrice(address _position) internal view returns (uint256 currentPrice, uint256 overdrawnPrice) {
@@ -219,18 +219,19 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
     }
 
     function verifyPhase1Ranks(address[] memory closedPositions, bytes[] memory _phase1Ranks) internal {
-        for (uint256 i = 0; i < closedPositions.length; i++) {
+        uint256[] memory lastPositionsState = _getBatchPositionState(closedPositions);
+        uint256 closingPositionSize = closedPositions.length;
+        for (uint256 i = 0; i < closingPositionSize; i++) {
             uint256[] memory _bidRanks = abi.decode(_phase1Ranks[i], (uint256[]));
             BidItem[] memory bidItems = allPhase1BidRecords[closedPositions[i]];
             require(_bidRanks.length == bidItems.length, "AuctionHall: Invalid bidRanks size");
-            (, , uint256 closingBlock, uint256 positionState) = tradingHub.getPositionState(closedPositions[i]);
-            if (!((block.number.sub(closingBlock) > phase1MaxBlock && phase1Infos[closedPositions[i]].flag) || (_estimatePositionState(closedPositions[i]) == 8))) {
+            if (!((block.number.sub(auctionPositonInfoMap[closedPositions[i]].closingBlock) > phase1MaxBlock && phase1Infos[closedPositions[i]].flag) || (_estimatePositionState(closedPositions[i]) == CLOSED_STATE))) {
                 continue;
             }
-            require(positionState == 2, "AuctionHall: Not a closing position");
+            require(lastPositionsState[i] == CLOSING_STATE, "AuctionHall: Not a closing position");
             phase1Ranks[closedPositions[i]] = _phase1Ranks[i];
             _closePosition(closedPositions[i]);
-
+            emit AuctionFinished(closedPositions[i], 1);
             if (_bidRanks.length <= 1) {
                 break;
             }
@@ -287,6 +288,10 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         (, , , positionState) = tradingHub.getPositionState(_position);
     }
 
+    function _getBatchPositionState(address[] memory _positions) internal view returns (uint256[] memory positionsState) {
+        positionsState = tradingHub.getBatchPositionState(_positions);
+    }
+
     function _getMetaInfo(address _strPool)
         internal
         view
@@ -307,7 +312,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
     function _closePosition(address position) internal {
         AuctionPositonInfo storage auctionPositonInfo = auctionPositonInfoMap[position];
         shorterBone.tillOut(auctionPositonInfo.stakedToken, AllyLibrary.AUCTION_HALL, auctionPositonInfo.strPool, auctionPositonInfo.totalSize);
-        tradingHub.updatePositionState(position, 8);
+        tradingHub.updatePositionState(position, CLOSED_STATE);
         Phase1Info storage phase1Info = phase1Infos[position];
         uint256 phase1WonSize = phase1Info.bidSize > auctionPositonInfo.totalSize ? auctionPositonInfo.totalSize : phase1Info.bidSize;
         uint256 phase1UsedUnsettledCash = phase1WonSize.mul(phase1Info.liquidationPrice).div(10**(auctionPositonInfo.stakedTokenDecimals.add(18).sub(auctionPositonInfo.stableTokenDecimals)));
@@ -324,7 +329,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         )
     {
         uint256 positionState = _getPositionState(position);
-        if (positionState == 2) {
+        if (positionState == CLOSING_STATE) {
             return (0, 0, 0);
         }
 

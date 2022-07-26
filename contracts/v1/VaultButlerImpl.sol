@@ -56,7 +56,7 @@ contract VaultButlerImpl is ChainSchema, GaiaStorage, IVaultButler {
     }
 
     function _priceOfLegacy(PositionInfo memory positionInfo) internal view returns (uint256) {
-        require(positionInfo.positionState == 4, "VaultButler: Not a legacy position");
+        require(positionInfo.positionState == OVERDRAWN_STATE, "VaultButler: Not a legacy position");
         uint256 currentPrice = priceOracle.getLatestMixinPrice(positionInfo.stakedToken);
         currentPrice = currentPrice.mul(102).div(100);
 

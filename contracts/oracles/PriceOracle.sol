@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
 
+import "../libraries/AllyLibrary.sol";
 import "./IPriceOracle.sol";
 import "../interfaces/uniswapv2/IUniswapV2Factory.sol";
 import "../interfaces/uniswapv2/IUniswapV2Pair.sol";
@@ -13,6 +14,7 @@ import "./AggregatorV3Interface.sol";
 
 contract PriceOracle is IPriceOracle, Affinity {
     using BoringMath for uint256;
+    using AllyLibrary for IShorterBone;
 
     struct Router {
         bool flag;
@@ -32,8 +34,20 @@ contract PriceOracle is IPriceOracle, Affinity {
 
     event PriceUpdated(address indexed tokenAddr, uint256 price);
 
-    constructor(address _SAVIOR, address _stableTokenAddr) public Affinity(_SAVIOR) {
+    modifier onlyCommittee() {
+        shorterBone.assertCaller(msg.sender, AllyLibrary.COMMITTEE);
+        _;
+    }
+
+    constructor(
+        address _SAVIOR,
+        address _stableTokenAddr,
+        address _dexCenter,
+        IShorterBone _shorterBone
+    ) public Affinity(_SAVIOR) {
         stableTokenAddr = _stableTokenAddr;
+        shorterBone = _shorterBone;
+        dexCenter = IDexCenter(_dexCenter);
     }
 
     /// @notice Get lastest USD price of one specified token, use spare price feeder first
@@ -50,24 +64,19 @@ contract PriceOracle is IPriceOracle, Affinity {
         tokenPrice = tokenPrice.mul(10**(uint256(18).sub(decimals)));
     }
 
-
     function setPrice(address tokenAddr, uint256 price) external isKeeper {
         emit PriceUpdated(tokenAddr, price);
         prices[tokenAddr] = price;
     }
 
-    function setSpareFeedContract(address tokenAddr, address feedContract) external isKeeper {
+    function setSpareFeedContract(address tokenAddr, address feedContract) external onlyCommittee {
         spareFeedContracts[tokenAddr] = feedContract;
     }
 
-    function setSpareFeedContracts(address[] memory tokenAddrs, address[] memory feedContracts) external isKeeper {
+    function setSpareFeedContracts(address[] memory tokenAddrs, address[] memory feedContracts) external onlyCommittee {
         for (uint256 i = 0; i < tokenAddrs.length; i++) {
             spareFeedContracts[tokenAddrs[i]] = feedContracts[i];
         }
-    }
-
-    function setBaseTokenContract(address newBaseToken) external isKeeper {
-        stableTokenAddr = newBaseToken;
     }
 
     function setRouter(
@@ -80,16 +89,12 @@ contract PriceOracle is IPriceOracle, Affinity {
         getRouter[tokenAddr] = Router({flag: flag, swapRouter: swapRouter, path: path, fees: fees});
     }
 
-    function setPriceOracleMode(address tokenAddr, PriceOracleMode mode) external isKeeper {
+    function setPriceOracleMode(address tokenAddr, PriceOracleMode mode) external onlyCommittee {
         priceOracleModeMap[tokenAddr] = mode;
     }
 
-    function setDexCenter(IDexCenter _dexCenter) external isKeeper {
+    function setDexCenter(IDexCenter _dexCenter) external onlyCommittee {
         dexCenter = _dexCenter;
-    }
-
-    function setShorterBone(IShorterBone _shorterBone) external isKeeper {
-        shorterBone = _shorterBone;
     }
 
     function _getLatestPrice(address tokenAddr) internal view returns (uint256 tokenPirce) {

@@ -33,4 +33,6 @@ contract VaultStorage is TitanCoreStorage {
     ICommittee public committee;
     ITradingHub public tradingHub;
     IPriceOracle public priceOracle;
+
+    uint256 public constant OVERDRAWN_STATE = 4;
 }

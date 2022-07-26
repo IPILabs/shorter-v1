@@ -11,6 +11,12 @@ import "../../util/BoringMath.sol";
 
 contract VoteRewardModelImpl is ChainSchema, VoteRewardModelStorage, IVoteRewardModel {
     using BoringMath for uint256;
+    using AllyLibrary for IShorterBone;
+
+    modifier onlyCommittee() {
+        shorterBone.assertCaller(msg.sender, AllyLibrary.COMMITTEE);
+        _;
+    }
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
@@ -71,7 +77,7 @@ contract VoteRewardModelImpl is ChainSchema, VoteRewardModelStorage, IVoteReward
         _initialized = true;
     }
 
-    function setIpistrPerProposal(uint256 _amount) external isKeeper {
+    function setIpistrPerProposal(uint256 _amount) external onlyCommittee {
         ipistrPerProposal = _amount;
     }
 }

@@ -30,8 +30,7 @@ interface IAuctionHall {
     event AuctionInitiated(address indexed positionAddr);
     event BidTanto(address indexed positionAddr, address indexed ruler, uint256 bidSize, uint256 priorityFee);
     event BidKatana(address indexed positionAddr, address indexed ruler, uint256 debtSize, uint256 usedCash, uint256 dexCoverReward);
-    event AuctionFinished(address indexed positionAddr, address indexed trader, uint256 indexed phase);
-    event Phase1Finished(address indexed positionAddr);
+    event AuctionFinished(address indexed positionAddr, uint256 indexed phase);
     event Phase1Rollback(address indexed positionAddr);
     event Retrieve(address indexed positionAddr, uint256 stableTokenSize, uint256 debtTokenSize, uint256 priorityFee);
 }

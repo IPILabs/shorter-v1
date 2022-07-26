@@ -109,10 +109,6 @@ contract FarmingRewardModelImpl is ChainSchema, FarmingRewardModelStorage, IFarm
         maxLpSupply = _maxLpSupply;
     }
 
-    function setFarming(address newFarming) external isKeeper {
-        farming = IFarming(newFarming);
-    }
-
     function _getBaseSpeed(uint256 userStakedAmount) internal view returns (uint256 speed) {
         if (userStakedAmount >= maxLpSupply) {
             return maxUnlockSpeed;

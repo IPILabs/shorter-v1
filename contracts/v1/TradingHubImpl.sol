@@ -33,6 +33,11 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         _;
     }
 
+    modifier onlyCommittee() {
+        shorterBone.assertCaller(msg.sender, AllyLibrary.COMMITTEE);
+        _;
+    }
+
     function sellShort(
         uint256 poolId,
         uint256 amount,
@@ -104,6 +109,14 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         return (uint256(positionInfo.poolId), positionInfo.strToken, uint256(positionBlocks[position].closingBlock), positionInfo.positionState);
     }
 
+    function getBatchPositionState(address[] memory positions) external view override returns (uint256[] memory positionsState) {
+        uint256 positionSize = positions.length;
+        positionsState = new uint256[](positionSize);
+        for (uint256 i = 0; i < positionSize; i++) {
+            positionsState[i] = positionInfoMap[positions[i]].positionState;
+        }
+    }
+
     function getPositions(address account) external view returns (address[] memory positions) {
         positions = new address[](userPositionSize[account]);
         for (uint256 i = 0; i < userPositionSize[account]; i++) {
@@ -111,10 +124,17 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         }
     }
 
-    function initialize(address _shorterBone, address _poolGuardian) external isSavior {
+    function initialize(
+        address _shorterBone,
+        address _poolGuardian,
+        address _dexCenter,
+        address _priceOracle
+    ) external isSavior {
         require(!_initialized, "TradingHub: Already initialized");
         shorterBone = IShorterBone(_shorterBone);
         poolGuardian = IPoolGuardian(_poolGuardian);
+        dexCenter = IDexCenter(_dexCenter);
+        priceOracle = IPriceOracle(_priceOracle);
         _initialized = true;
     }
 
@@ -141,9 +161,44 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         return poolStatsMap[poolId].overdrawns == 0;
     }
 
+    function setBatchClosePositions(ITradingHub.BatchPositionInfo[] memory batchPositionInfos) external override {
+        shorterBone.assertCaller(msg.sender, AllyLibrary.GRAB_REWARD);
+        uint256 positionCount = batchPositionInfos.length;
+        for (uint256 i = 0; i < positionCount; i++) {
+            (, address strPool, IPoolGuardian.PoolStatus poolStatus) = poolGuardian.getPoolInfo(batchPositionInfos[i].poolId);
+            require(poolStatus == IPoolGuardian.PoolStatus.RUNNING, "TradingHub: Pool is not running");
+            (, , , , , , , uint256 endBlock, , , , ) = IPool(strPool).getMetaInfo();
+            require(block.number > endBlock, "TradingHub: Pool is not Liquidating");
+            for (uint256 j = 0; j < batchPositionInfos[i].positions.length; j++) {
+                PositionIndex storage positionInfo = positionInfoMap[batchPositionInfos[i].positions[j]];
+                require(positionInfo.positionState == OPEN_STATE, "TradingHub: Position is not open");
+                _updatePositionState(batchPositionInfos[i].positions[j], CLOSING_STATE);
+            }
+            if (batchPositionInfos[i].positions.length > 0) {
+                IPool(strPool).batchUpdateFundingFee(batchPositionInfos[i].positions);
+            }
+            if (poolStatsMap[batchPositionInfos[i].poolId].opens > 0) break;
+            if (poolStatsMap[batchPositionInfos[i].poolId].closings > 0 || poolStatsMap[batchPositionInfos[i].poolId].overdrawns > 0) {
+                poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.LIQUIDATING);
+            } else {
+                poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.ENDED);
+            }
+        }
+    }
+
     function updatePositionState(address position, uint256 positionState) external override {
         require(shorterBone.checkCaller(msg.sender, AllyLibrary.AUCTION_HALL) && shorterBone.checkCaller(msg.sender, AllyLibrary.VAULT_BUTLER), "TradingHub: Caller is neither AuctionHall nor VaultButler");
         _updatePositionState(position, positionState);
+    }
+
+    function batchUpdatePositionState(address[] memory positions, uint256[] memory positionsState) external override {
+        require(shorterBone.checkCaller(msg.sender, AllyLibrary.AUCTION_HALL), "TradingHub: Caller is not AuctionHall");
+        uint256 positionCount = positions.length;
+        for (uint256 i = 0; i < positionCount; i++) {
+            if (positionsState[i] > 0) {
+                _updatePositionState(positions[i], positionsState[i]);
+            }
+        }
     }
 
     function _duplicatedOpenPosition(uint256 poolId, address user) internal view returns (address position) {
@@ -240,12 +295,12 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         return resPositions;
     }
 
-    function setDexCenter(address newDexCenter) external isKeeper {
+    function setDexCenter(address newDexCenter) external onlyCommittee {
         require(newDexCenter != address(0), "TradingHub: NewDexCenter is zero address");
         dexCenter = IDexCenter(newDexCenter);
     }
 
-    function setPriceOracle(address newPriceOracle) external isKeeper {
+    function setPriceOracle(address newPriceOracle) external onlyCommittee {
         require(newPriceOracle != address(0), "TradingHub: NewPriceOracle is zero address");
         priceOracle = IPriceOracle(newPriceOracle);
     }

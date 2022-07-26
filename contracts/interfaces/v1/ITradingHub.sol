@@ -19,13 +19,19 @@ interface ITradingHub {
             uint256 positionState
         );
 
+    function getBatchPositionState(address[] memory positions) external view returns (uint256[] memory positionsState);
+
     function getPositionsByPoolId(uint256 poolId, uint256 positionState) external view returns (address[] memory);
 
     function getPositionsByState(uint256 positionState) external view returns (address[] memory);
 
     function updatePositionState(address position, uint256 positionState) external;
 
+    function batchUpdatePositionState(address[] memory positions, uint256[] memory positionsState) external;
+
     function isPoolWithdrawable(uint256 poolId) external view returns (bool);
+
+    function setBatchClosePositions(BatchPositionInfo[] memory batchPositionInfos) external;
 
     event PositionOpened(uint256 indexed poolId, address indexed trader, address indexed positionAddr, uint256 orderSize);
     event PositionIncreased(uint256 indexed poolId, address indexed trader, address indexed positionAddr, uint256 orderSize);

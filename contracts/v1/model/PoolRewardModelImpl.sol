@@ -351,7 +351,6 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
         address _farming
     ) external isSavior {
         require(!_initialized, "PoolReward: Already initialized");
-        ipistrPerBlock = 1e19;
         shorterBone = IShorterBone(_shorterBone);
         poolGuardian = IPoolGuardian(_poolGuardian);
         priceOracle = IPriceOracle(_priceOracle);

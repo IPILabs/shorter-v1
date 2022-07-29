@@ -138,7 +138,7 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
             proposal.forShares = voteShare.add(proposal.forShares);
             forVoteProposals[msg.sender].add(proposalId);
             userVoteShare.forShares = userVoteShare.forShares.add(voteShare);
-            bool _finished = ((uint256(proposal.forShares).mul(10) >= totalIpistrStakedShare) && uint256(proposal.catagory) == uint256(1)) || ((uint256(proposal.forShares).mul(2) >= totalIpistrStakedShare) && uint256(proposal.catagory) == uint256(2));
+            bool _finished = ((uint256(proposal.forShares).mul(10) >= totalIpistrStakedShare) && uint256(proposal.catagory) == uint256(1)) || ((uint256(proposal.forShares).mul(5) >= totalIpistrStakedShare) && uint256(proposal.catagory) == uint256(2));
             if (_finished) {
                 _updateProposalStatus(proposalId, ProposalStatus.Passed);
                 _makeProposalQueued(proposal);
@@ -148,7 +148,7 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
             proposal.againstShares = voteShare.add(proposal.againstShares);
             againstVoteProposals[msg.sender].add(proposalId);
             userVoteShare.againstShares = userVoteShare.againstShares.add(voteShare);
-            bool _finished = ((uint256(proposal.againstShares).mul(10) >= totalIpistrStakedShare) && uint256(proposal.catagory) == uint256(1)) || ((uint256(proposal.againstShares).mul(2) >= totalIpistrStakedShare) && uint256(proposal.catagory) == uint256(2));
+            bool _finished = ((uint256(proposal.againstShares).mul(10) >= totalIpistrStakedShare) && uint256(proposal.catagory) == uint256(1)) || ((uint256(proposal.againstShares).mul(5) >= totalIpistrStakedShare) && uint256(proposal.catagory) == uint256(2));
             if (_finished) {
                 _updateProposalStatus(proposalId, ProposalStatus.Failed);
                 _unlockRulerVotingShare(proposal.id);

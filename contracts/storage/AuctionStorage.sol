@@ -57,10 +57,6 @@ contract AuctionStorage is TitanCoreStorage {
     ITradingHub public tradingHub;
     IPriceOracle public priceOracle;
 
-    uint256 public constant CLOSING_STATE = 2;
-    uint256 public constant OVERDRAWN_STATE = 4;
-    uint256 public constant CLOSED_STATE = 8;
-
     mapping(uint256 => mapping(address => uint256)) userReentrantLocks;
 
     mapping(address => bytes) public phase1Ranks;

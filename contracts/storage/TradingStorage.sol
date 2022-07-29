@@ -59,11 +59,6 @@ contract TradingStorage is TitanCoreStorage {
         uint256 positionState;
     }
 
-    uint256 public constant OPEN_STATE = 1;
-    uint256 public constant CLOSING_STATE = 2;
-    uint256 public constant OVERDRAWN_STATE = 4;
-    uint256 public constant CLOSED_STATE = 8;
-
     bool internal _initialized;
     uint256 public allPositionSize;
     IDexCenter public dexCenter;

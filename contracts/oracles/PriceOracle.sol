@@ -23,7 +23,7 @@ contract PriceOracle is IPriceOracle, Affinity {
         uint24[] fees;
     }
 
-    address internal stableTokenAddr;
+    address public immutable stableTokenAddr;
     IDexCenter public dexCenter;
     IShorterBone public shorterBone;
 

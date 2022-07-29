@@ -21,6 +21,10 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
     using Path for bytes;
     using AllyLibrary for IShorterBone;
 
+    uint256 internal constant CLOSING_STATE = 2;
+    uint256 internal constant OVERDRAWN_STATE = 4;
+    uint256 internal constant CLOSED_STATE = 8;
+
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
     modifier reentrantLock(uint256 code) {

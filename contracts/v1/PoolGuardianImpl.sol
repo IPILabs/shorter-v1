@@ -95,7 +95,7 @@ contract PoolGuardianImpl is ChainSchema, TheiaStorage, IPoolGuardian {
         emit PoolInvokerChanged(msg.sender, _implementation, _sigs);
     }
 
-    function setWrapRouter(address newWrapRouter) external isKeeper {
+    function setWrapRouter(address newWrapRouter) external isSavior {
         require(newWrapRouter != address(0));
         wrapRouter = newWrapRouter;
     }

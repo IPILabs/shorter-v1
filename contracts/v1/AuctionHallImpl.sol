@@ -222,7 +222,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         return abi.encode(_bidRanks);
     }
 
-    function verifyPhase1Ranks(address[] memory closedPositions, bytes[] memory _phase1Ranks) internal {
+    function verifyPhase1Ranks(address[] calldata closedPositions, bytes[] calldata _phase1Ranks) internal {
         uint256[] memory lastPositionsState = _getBatchPositionState(closedPositions);
         uint256 closingPositionSize = closedPositions.length;
         for (uint256 i = 0; i < closingPositionSize; i++) {

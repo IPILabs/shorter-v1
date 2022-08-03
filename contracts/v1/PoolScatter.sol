@@ -137,7 +137,7 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
         shorterBone.poolTillOut(id, address(stableToken), bidder, amount);
     }
 
-    function batchUpdateFundingFee(address[] memory positions) external onlyTradingHub {
+    function batchUpdateFundingFee(address[] calldata positions) external onlyTradingHub {
         for (uint256 i = 0; i < positions.length; i++) {
             _updateFunding(positions[i]);
         }

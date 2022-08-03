@@ -85,7 +85,7 @@ interface IPool {
         uint256 legacyUsed
     ) external;
 
-    function batchUpdateFundingFee(address[] memory positions) external;
+    function batchUpdateFundingFee(address[] calldata positions) external;
 
     function deliver(bool _isLegacyLeftover) external;
 

@@ -24,6 +24,9 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
     uint256 internal constant OVERDRAWN_STATE = 4;
     uint256 internal constant CLOSED_STATE = 8;
 
+    uint256 internal constant SLIPPAGE_NUMERATOR = 90;
+    uint256 internal constant SLIPPAGE_DENOMINATOR = 100;
+
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
     modifier reentrantLock(uint256 code) {
@@ -57,7 +60,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         require(pool.stateFlag == IPoolGuardian.PoolStatus.RUNNING && pool.endBlock > block.number, "TradingHub: Expired pool");
 
         uint256 estimatePrice = priceOracle.getLatestMixinPrice(address(pool.stakedToken));
-        require(estimatePrice.mul(amount).mul(9) < amountOutMin.mul(10**(uint256(19).add(pool.stakedTokenDecimals).sub(pool.stableTokenDecimals))), "TradingHub: Slippage too large");
+        require(estimatePrice.mul(amount).mul(SLIPPAGE_NUMERATOR).div(SLIPPAGE_DENOMINATOR) < amountOutMin.mul(10**(uint256(18).add(pool.stakedTokenDecimals).sub(pool.stableTokenDecimals))), "TradingHub: Slippage too large");
         address position = _duplicatedOpenPosition(poolId, msg.sender);
         if (position == address(0)) {
             position = address(uint160(uint256(keccak256(abi.encode(poolId, msg.sender, block.number)))));
@@ -114,7 +117,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         return (uint256(positionInfo.poolId), positionInfo.strToken, uint256(positionBlocks[position].closingBlock), positionInfo.positionState);
     }
 
-    function getBatchPositionState(address[] memory positions) external view override returns (uint256[] memory positionsState) {
+    function getBatchPositionState(address[] calldata positions) external view override returns (uint256[] memory positionsState) {
         uint256 positionSize = positions.length;
         positionsState = new uint256[](positionSize);
         for (uint256 i = 0; i < positionSize; i++) {
@@ -166,7 +169,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         return poolStatsMap[poolId].overdrawns == 0;
     }
 
-    function setBatchClosePositions(ITradingHub.BatchPositionInfo[] memory batchPositionInfos) external override {
+    function setBatchClosePositions(ITradingHub.BatchPositionInfo[] calldata batchPositionInfos) external override {
         shorterBone.assertCaller(msg.sender, AllyLibrary.GRAB_REWARD);
         uint256 positionCount = batchPositionInfos.length;
         for (uint256 i = 0; i < positionCount; i++) {
@@ -196,7 +199,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         _updatePositionState(position, positionState);
     }
 
-    function batchUpdatePositionState(address[] memory positions, uint256[] memory positionsState) external override {
+    function batchUpdatePositionState(address[] calldata positions, uint256[] calldata positionsState) external override {
         require(shorterBone.checkCaller(msg.sender, AllyLibrary.AUCTION_HALL), "TradingHub: Caller is not AuctionHall");
         uint256 positionCount = positions.length;
         for (uint256 i = 0; i < positionCount; i++) {

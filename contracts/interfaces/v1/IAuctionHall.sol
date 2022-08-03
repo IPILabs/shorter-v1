@@ -3,14 +3,6 @@ pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
 interface IAuctionHall {
-    enum AuctionPhase {
-        GENESIS,
-        PHASE_1,
-        PHASE_2,
-        LEGACY,
-        FINISHED
-    }
-
     function inquire()
         external
         view

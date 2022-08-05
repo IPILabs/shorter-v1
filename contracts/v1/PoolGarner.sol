@@ -147,7 +147,7 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         require(percent > 0 && percent <= 100, "PoolGarner: Invalid withdraw percentage");
         uint256 _userShare;
         address stakedToken_;
-        (stakedToken_, withdrawAmount, burnAmount, _userShare) = wrapRouter.getUnwrapableAmountByPercent(percent, msg.sender, address(stakedToken), balanceOf[msg.sender], totalBorrowAmount);
+        (stakedToken_, withdrawAmount, burnAmount, _userShare) = wrapRouter.getUnwrappableAmountByPercent(percent, msg.sender, address(stakedToken), balanceOf[msg.sender], totalBorrowAmount);
         require(stakedToken_ != address(0), "PoolGarner: Insufficient liquidity");
         if (_userShare > 0) {
             uint256 usdAmount = stableToken.balanceOf(address(this)).mul(_userShare).mul(percent).div(1e20);
@@ -157,14 +157,14 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
 
     function _getWithdrawableAmount(uint256 amount) internal view returns (uint256 withdrawAmount, uint256 burnAmount) {
         require(balanceOf[msg.sender] >= amount && amount > 0, "PoolGarner _getWithdrawableAmount: Insufficient balance");
-        address stakedToken_ = wrapRouter.getUnwrapableAmount(msg.sender, address(stakedToken), amount);
+        address stakedToken_ = wrapRouter.getUnwrappableAmount(msg.sender, address(stakedToken), amount);
         require(stakedToken_ != address(0), "PoolGarner: Insufficient liquidity");
         withdrawAmount = amount;
         burnAmount = amount;
     }
 
     function _deposit(address account, uint256 amount) internal {
-        address _stakedToken = wrapRouter.wrapable(address(stakedToken), address(this), account, amount, msg.value);
+        address _stakedToken = wrapRouter.wrappable(address(stakedToken), address(this), account, amount, msg.value);
         require(_stakedToken != address(0), "PoolGarner: Insufficient balance");
         if (_stakedToken == WrappedEtherAddr) {
             require(msg.value == amount, "PoolGarner _deposit: Invalid amount");

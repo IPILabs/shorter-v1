@@ -100,7 +100,7 @@ contract WrapRouter is Ownable, Pausable {
         return transferableAmounts[account][strPool];
     }
 
-    function wrapable(
+    function wrappable(
         address token,
         address strPool,
         address account,
@@ -108,14 +108,14 @@ contract WrapRouter is Ownable, Pausable {
         uint256 value
     ) public view returns (address stakedToken) {
         if (token == wrappedEtherAddr && getInherit[token] != address(0)) {
-            stakedToken = _wrapableWithETH(strPool, account, value);
+            stakedToken = _wrappableWithETH(strPool, account, value);
         }
         if (token != wrappedEtherAddr && getInherit[token] != address(0)) {
-            stakedToken = _wrapableWithToken(token, strPool, account, amount);
+            stakedToken = _wrappableWithToken(token, strPool, account, amount);
         }
     }
 
-    function getUnwrapableAmount(
+    function getUnwrappableAmount(
         address account,
         address token,
         uint256 amount
@@ -128,7 +128,7 @@ contract WrapRouter is Ownable, Pausable {
         return controvertibleAmount < amount ? address(0) : token;
     }
 
-    function getUnwrapableAmountByPercent(
+    function getUnwrappableAmountByPercent(
         uint256 percent,
         address account,
         address token,
@@ -178,7 +178,7 @@ contract WrapRouter is Ownable, Pausable {
         }
     }
 
-    function _wrapableWithToken(
+    function _wrappableWithToken(
         address token,
         address strPool,
         address account,
@@ -194,7 +194,7 @@ contract WrapRouter is Ownable, Pausable {
         }
     }
 
-    function _wrapableWithETH(
+    function _wrappableWithETH(
         address strPool,
         address account,
         uint256 value

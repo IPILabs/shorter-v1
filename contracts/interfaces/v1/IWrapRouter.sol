@@ -2,7 +2,7 @@
 pragma solidity 0.6.12;
 
 interface IWrapRouter {
-    function wrapable(
+    function wrappable(
         address token,
         address strPool,
         address account,
@@ -10,13 +10,13 @@ interface IWrapRouter {
         uint256 value
     ) external view returns (address);
 
-    function getUnwrapableAmount(
+    function getUnwrappableAmount(
         address account,
         address token,
         uint256 amount
     ) external view returns (address stakedToken);
 
-    function getUnwrapableAmountByPercent(
+    function getUnwrappableAmountByPercent(
         uint256 percent,
         address account,
         address token,

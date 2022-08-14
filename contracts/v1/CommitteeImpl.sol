@@ -28,6 +28,8 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
         maxVotingDays = 2;
         proposalFee = 1e22;
         rulerThreshold = 1e9;
+        committeeProposalThreshold = 50;
+        poolProposalThreshold = 10;
     }
 
     /// @notice User deposit IPISTR into committee pool
@@ -138,7 +140,8 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
             proposal.forShares = voteShare.add(proposal.forShares);
             forVoteProposals[msg.sender].add(proposalId);
             userVoteShare.forShares = userVoteShare.forShares.add(voteShare);
-            bool _finished = ((uint256(proposal.forShares).mul(10) >= totalIpistrStakedShare) && uint256(proposal.catagory) == uint256(1)) || ((uint256(proposal.forShares).mul(5) >= totalIpistrStakedShare) && uint256(proposal.catagory) == uint256(2));
+            bool _finished = ((uint256(proposal.forShares) >= totalIpistrStakedShare.mul(poolProposalThreshold).div(100)) && uint256(proposal.catagory) == uint256(1)) ||
+                ((uint256(proposal.forShares) >= totalIpistrStakedShare.mul(committeeProposalThreshold).div(100)) && uint256(proposal.catagory) == uint256(2));
             if (_finished) {
                 _updateProposalStatus(proposalId, ProposalStatus.Passed);
                 _makeProposalQueued(proposal);
@@ -302,6 +305,16 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
     /// @notice Switch proposal's display state
     function changeProposalVisibility(uint256 proposalId, bool displayable) external isManager {
         proposalGallery[proposalId].displayable = displayable;
+    }
+
+    function setCommitteeProposalQuorum(uint256 threshold) external {
+        require(msg.sender == address(this), "Committee: Caller is not Committee");
+        committeeProposalThreshold = threshold;
+    }
+
+    function setPoolProposalQuorum(uint256 threshold) external {
+        require(msg.sender == address(this), "Committee: Caller is not Committee");
+        poolProposalThreshold = threshold;
     }
 
     function _makeProposalQueued(Proposal storage proposal) internal {

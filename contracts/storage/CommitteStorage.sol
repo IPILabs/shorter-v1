@@ -74,6 +74,10 @@ contract CommitteStorage is TitanCoreStorage {
 
     address public stableToken;
 
+    uint256 public poolProposalThreshold;
+
+    uint256 public committeeProposalThreshold;
+
     EnumerableSet.UintSet internal queuedProposals;
 
     // Vote weight = (staked share of user / all staked share) %

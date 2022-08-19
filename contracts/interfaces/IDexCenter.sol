@@ -25,18 +25,16 @@ interface IDexCenter {
 
     function isSwapRouterV3(address swapRouter) external view returns (bool);
 
-    function getV2Price(address swapRouter, address[] memory path) external view returns (uint256 price);
-
-    function getV3Price(
-        address swapRouter,
-        address[] memory path,
-        uint24[] memory fees
-    ) external view returns (uint256 price);
-
     function checkPath(
         address token0,
         address token1,
         address swapRouter,
         bytes memory path
     ) external;
+
+    function getTokenPrice(
+        address swapRouter,
+        address[] memory path,
+        uint24[] memory fees
+    ) external view returns (uint256 price);
 }

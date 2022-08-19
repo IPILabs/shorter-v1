@@ -111,11 +111,7 @@ contract PriceOracle is IPriceOracle, Affinity {
 
     function _getDexPrice(address tokenAddr) internal view returns (uint256 tokenPirce) {
         (address swapRouter, address[] memory path, uint24[] memory fees) = getAutoRouter(tokenAddr);
-        if (dexCenter.isSwapRouterV3(swapRouter)) {
-            tokenPirce = dexCenter.getV3Price(swapRouter, path, fees);
-        } else {
-            tokenPirce = dexCenter.getV2Price(swapRouter, path);
-        }
+        tokenPirce = dexCenter.getTokenPrice(swapRouter, path, fees);
     }
 
     function getAutoRouter(address tokenAddr)

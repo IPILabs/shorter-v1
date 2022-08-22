@@ -28,7 +28,7 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
     }
 
     modifier onlyAuction() {
-        require(shorterBone.checkCaller(msg.sender, AllyLibrary.AUCTION_HALL) && shorterBone.checkCaller(msg.sender, AllyLibrary.VAULT_BUTLER), "PoolScatter: Caller is neither AuctionHall nor VaultButler");
+        require(shorterBone.checkCaller(msg.sender, AllyLibrary.AUCTION_HALL) || shorterBone.checkCaller(msg.sender, AllyLibrary.VAULT_BUTLER), "PoolScatter: Caller is neither AuctionHall nor VaultButler");
         _;
     }
 

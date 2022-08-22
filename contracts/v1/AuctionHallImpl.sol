@@ -428,8 +428,8 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         Phase1Info storage phase1Info = phase1Infos[_position];
         AuctionPositonInfo storage auctionPositonInfo = auctionPositonInfoMap[_position];
         uint256 phase1BidCount = bidRanks.length;
+        stableTokenSize = stableTokenSize.add(_stableTokenSize);
         for (uint256 i = 0; i < phase1BidCount; i++) {
-            stableTokenSize = stableTokenSize.add(_stableTokenSize);
             uint256 wonSize;
             if (!phase1Info.flag && !_phase2Flag) {
                 wonSize = 0;

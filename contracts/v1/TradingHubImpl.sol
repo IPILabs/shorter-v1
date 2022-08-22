@@ -24,9 +24,6 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
     uint256 internal constant OVERDRAWN_STATE = 4;
     uint256 internal constant CLOSED_STATE = 8;
 
-    uint256 internal constant SLIPPAGE_NUMERATOR = 90;
-    uint256 internal constant SLIPPAGE_DENOMINATOR = 100;
-
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
     modifier reentrantLock(uint256 code) {
@@ -60,7 +57,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         require(pool.stateFlag == IPoolGuardian.PoolStatus.RUNNING && pool.endBlock > block.number, "TradingHub: Expired pool");
 
         uint256 estimatePrice = priceOracle.getLatestMixinPrice(address(pool.stakedToken));
-        require(estimatePrice.mul(amount).mul(SLIPPAGE_NUMERATOR).div(SLIPPAGE_DENOMINATOR) < amountOutMin.mul(10**(uint256(18).add(pool.stakedTokenDecimals).sub(pool.stableTokenDecimals))), "TradingHub: Slippage too large");
+        require(estimatePrice.mul(amount).mul(pool.leverage.mul(100).sub(30)).div(pool.leverage.mul(100)) < amountOutMin.mul(10**(uint256(18).add(pool.stakedTokenDecimals).sub(pool.stableTokenDecimals))), "TradingHub: Slippage too large");
         address position = _duplicatedOpenPosition(poolId, msg.sender);
         if (position == address(0)) {
             position = address(uint160(uint256(keccak256(abi.encode(poolId, msg.sender, block.number)))));
@@ -195,7 +192,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
     }
 
     function updatePositionState(address position, uint256 positionState) external override {
-        require(shorterBone.checkCaller(msg.sender, AllyLibrary.AUCTION_HALL) && shorterBone.checkCaller(msg.sender, AllyLibrary.VAULT_BUTLER), "TradingHub: Caller is neither AuctionHall nor VaultButler");
+        require(shorterBone.checkCaller(msg.sender, AllyLibrary.AUCTION_HALL) || shorterBone.checkCaller(msg.sender, AllyLibrary.VAULT_BUTLER), "TradingHub: Caller is neither AuctionHall nor VaultButler");
         _updatePositionState(position, positionState);
     }
 

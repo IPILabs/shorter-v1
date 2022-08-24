@@ -39,12 +39,12 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         uint256 withdrawAmount;
         uint256 burnAmount;
         if (isLegacyLeftover) {
-            (withdrawAmount, burnAmount) = _getWithdrawableAmountByLegacy(percent);
+            (withdrawAmount, burnAmount) = _tryWithdrawByPercent(percent);
         } else {
-            (withdrawAmount, burnAmount) = _getWithdrawableAmount(amount);
+            (withdrawAmount, burnAmount) = _tryWithdrawByAmount(amount);
         }
 
-            _withdraw(msg.sender, withdrawAmount);
+        _withdrawStakedToken(msg.sender, withdrawAmount);
 
         poolRewardModel.harvestByStrToken(id, msg.sender, balanceOf[msg.sender].sub(burnAmount));
         _burn(msg.sender, burnAmount);
@@ -104,7 +104,7 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         id = _poolId;
         leverage = _leverage.to64();
         durationDays = _durationDays.to64();
-        _name = string(abi.encodePacked("Shorter Pool ", stakedToken.name()));
+        _name = string(abi.encodePacked("Shorter Pool #", _poolId));
         _symbol = string(abi.encodePacked("str", stakedToken.symbol()));
         _decimals = stakedTokenDecimals;
         tradingHub = ITradingHub(_tradingHubAddr);
@@ -143,7 +143,7 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         return (creator, address(stakedToken), address(stableToken), address(wrappedToken), uint256(leverage), uint256(durationDays), uint256(startBlock), uint256(endBlock), id, uint256(stakedTokenDecimals), uint256(stableTokenDecimals), stateFlag);
     }
 
-    function _getWithdrawableAmountByLegacy(uint256 percent) internal returns (uint256 withdrawAmount, uint256 burnAmount) {
+    function _tryWithdrawByPercent(uint256 percent) internal returns (uint256 withdrawAmount, uint256 burnAmount) {
         require(percent > 0 && percent <= 100, "PoolGarner: Invalid withdraw percentage");
         uint256 _userShare;
         address stakedToken_;
@@ -155,8 +155,8 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         }
     }
 
-    function _getWithdrawableAmount(uint256 amount) internal view returns (uint256 withdrawAmount, uint256 burnAmount) {
-        require(balanceOf[msg.sender] >= amount && amount > 0, "PoolGarner _getWithdrawableAmount: Insufficient balance");
+    function _tryWithdrawByAmount(uint256 amount) internal view returns (uint256 withdrawAmount, uint256 burnAmount) {
+        require(balanceOf[msg.sender] >= amount && amount > 0, "PoolGarner: Invalid withdraw amount");
         address stakedToken_ = wrapRouter.getUnwrappableAmount(msg.sender, address(stakedToken), amount);
         require(stakedToken_ != address(0), "PoolGarner: Insufficient liquidity");
         withdrawAmount = amount;
@@ -165,9 +165,9 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
 
     function _deposit(address account, uint256 amount) internal {
         address _stakedToken = wrapRouter.wrappable(address(stakedToken), address(this), account, amount, msg.value);
-        require(_stakedToken != address(0), "PoolGarner: Insufficient balance");
+        require(_stakedToken != address(0), "PoolGarner: Invalid stake token");
         if (_stakedToken == WrappedEtherAddr) {
-            require(msg.value == amount, "PoolGarner _deposit: Invalid amount");
+            require(msg.value == amount, "PoolGarner: Invalid ether amount");
             IWETH(WrappedEtherAddr).deposit{value: msg.value}();
         } else {
             shorterBone.poolTillIn(id, _stakedToken, account, amount);
@@ -175,7 +175,7 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         wrapRouter.wrap(id, address(stakedToken), account, amount, _stakedToken);
     }
 
-    function _withdraw(address account, uint256 withdrawAmount) internal {
+    function _withdrawStakedToken(address account, uint256 withdrawAmount) internal {
         uint256 revenueAmount = stateFlag == IPoolGuardian.PoolStatus.RUNNING && uint256(poolUserUpdateBlock[msg.sender]).add(_blocksPerDay.mul(3)) > block.number ? withdrawAmount.div(1000) : 0;
         address treasury = shorterBone.getModule(AllyLibrary.TREASURY);
 

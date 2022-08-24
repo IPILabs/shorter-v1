@@ -42,7 +42,7 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
         uint256 amountOutMin,
         bytes memory path
     ) external onlyTradingHub returns (uint256 amountOut) {
-        _updateFunding(position);
+        _updateFundingFee(position);
 
         wrapRouter.unwrap(id, address(stakedToken), address(this), amountIn);
         totalBorrowAmount = totalBorrowAmount.add(amountIn);
@@ -83,8 +83,12 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
     ) external onlyTradingHub returns (bool isClosed) {
         PositionInfo storage positionInfo = positionInfoMap[position];
         require(positionInfo.totalSize >= amountOut, "PoolScatter: Invalid amountOut");
+        _updateFundingFee(position);
 
-        _updateFunding(position);
+        if (positionInfo.unsettledCash.mul(positionInfo.totalSize.sub(amountOut)).div(positionInfo.totalSize) < 10**(uint256(stableTokenDecimals))) {
+            amountInMax = positionInfo.unsettledCash;
+            amountOut = positionInfo.totalSize;
+        }
         uint256 _amountInMax = positionInfo.unsettledCash.mul(amountOut).div(positionInfo.totalSize);
         require(_amountInMax >= amountInMax, "PoolScatter: Invalid amountInMax");
 
@@ -100,7 +104,6 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
             uint256 remainingShare = (positionInfo.totalSize.sub(amountOut)).mul(1e18).div(positionInfo.totalSize);
             positionInfo.totalSize = positionInfo.totalSize.sub(amountOut);
             positionInfo.unsettledCash = positionInfo.unsettledCash.mul(remainingShare).div(1e18);
-            require(positionInfo.unsettledCash > 10**(uint256(stableTokenDecimals).add(1)), "PoolScatter: Tiny position value left");
         }
 
         tradingVolumeOf[trader] = tradingVolumeOf[trader].add(amountIn);
@@ -139,7 +142,7 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
 
     function batchUpdateFundingFee(address[] calldata positions) external onlyTradingHub {
         for (uint256 i = 0; i < positions.length; i++) {
-            _updateFunding(positions[i]);
+            _updateFundingFee(positions[i]);
         }
     }
 
@@ -159,7 +162,7 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
 
         positionState = estimatePositionState(currentPrice, position);
         if (positionState != 1) {
-            _updateFunding(position);
+            _updateFundingFee(position);
         }
     }
 
@@ -217,7 +220,7 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
         return 1;
     }
 
-    function _updateFunding(address position) internal {
+    function _updateFundingFee(address position) internal {
         PositionInfo storage positionInfo = positionInfoMap[position];
         if (positionInfo.lastestFeeBlock == 0) {
             positionInfo.lastestFeeBlock = block.number.to64();

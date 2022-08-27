@@ -37,23 +37,14 @@ contract VaultButlerImpl is ChainSchema, GaiaStorage, IVaultButler {
         require(bidSize > 0 && bidSize <= positionInfo.totalSize.sub(legacyInfo.bidSize), "VaultButler: Invalid bidSize");
         uint256 bidPrice = _priceOfLegacy(positionInfo);
         uint256 usedCash = bidSize.mul(bidPrice).div(10**(positionInfo.stakedTokenDecimals.add(18).sub(positionInfo.stableTokenDecimals)));
-        address _WrappedEtherAddr = IPoolGuardian(shorterBone.getPoolGuardian()).WrappedEtherAddr();
-        if (positionInfo.stakedToken == _WrappedEtherAddr) {
-            require(bidSize == msg.value, "VaultButler: Invalid amount");
-            IWETH(positionInfo.stakedToken).deposit{value: msg.value}();
-        } else {
-            shorterBone.tillIn(positionInfo.stakedToken, msg.sender, AllyLibrary.VAULT_BUTLER, bidSize);
-        }
-        IPool(positionInfo.strToken).stableTillOut(msg.sender, usedCash);
+        IPool(positionInfo.strToken).takeLegacyStableToken{value: msg.value}(msg.sender, usedCash, bidSize);
+
         legacyInfo.bidSize = legacyInfo.bidSize.add(bidSize);
         legacyInfo.usedCash = legacyInfo.usedCash.add(usedCash);
-
         if (legacyInfo.bidSize == positionInfo.totalSize) {
-            shorterBone.tillOut(positionInfo.stakedToken, AllyLibrary.VAULT_BUTLER, positionInfo.strToken, positionInfo.totalSize);
             tradingHub.updatePositionState(position, 8);
             IPool(positionInfo.strToken).auctionClosed(position, 0, 0, legacyInfo.usedCash);
         }
-
         emit ExecuteNaginata(position, msg.sender, bidSize, usedCash);
     }
 

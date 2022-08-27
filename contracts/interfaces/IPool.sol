@@ -87,9 +87,15 @@ interface IPool {
 
     function batchUpdateFundingFee(address[] calldata positions) external;
 
-    function deliver(bool _isLegacyLeftover) external;
+    function markLegacy() external;
 
     function stableTillOut(address bidder, uint256 amount) external;
+
+    function takeLegacyStableToken(
+        address bidder,
+        uint256 amount,
+        uint256 takeSize
+    ) external payable;
 
     function tradingFeeOf(address trader) external view returns (uint256);
 

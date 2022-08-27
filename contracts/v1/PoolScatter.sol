@@ -3,6 +3,7 @@ pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
 import "../libraries/AllyLibrary.sol";
+import "../interfaces/IWETH.sol";
 import "../../contracts/oracles/IPriceOracle.sol";
 import "../interfaces/v1/model/IInterestRateModel.sol";
 import "../interfaces/IDexCenter.sol";
@@ -117,8 +118,10 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
         uint256 legacyUsed
     ) external onlyAuction {
         PositionInfo storage positionInfo = positionInfoMap[position];
-        wrapRouter.wrap(id, address(stakedToken), address(this), positionInfo.totalSize, address(stakedToken));
-        totalBorrowAmount = totalBorrowAmount.sub(positionInfo.totalSize);
+        if (phase1Used > 0 || phase2Used > 0) {
+            wrapRouter.wrap(id, address(stakedToken), address(this), positionInfo.totalSize, address(stakedToken));
+            totalBorrowAmount = totalBorrowAmount.sub(positionInfo.totalSize);
+        }
         positionInfo.closedFlag = true;
         positionInfo.remnantAsset = positionInfo.unsettledCash.sub(phase1Used).sub(phase2Used).sub(legacyUsed);
     }
@@ -136,7 +139,25 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
         amountIn = _buyCover(dexCenter, isSwapRouterV3, isTetherToken, amountOut, amountInMax, swapRouter, shorterBone.getAuctionHall(), path);
     }
 
-    function stableTillOut(address bidder, uint256 amount) external onlyAuction {
+    function stableTillOut(address bidder, uint256 amount) external {
+        shorterBone.assertCaller(msg.sender, AllyLibrary.AUCTION_HALL);
+        shorterBone.poolTillOut(id, address(stableToken), bidder, amount);
+    }
+
+    function takeLegacyStableToken(
+        address bidder,
+        uint256 amount,
+        uint256 takeSize
+    ) external payable {
+        shorterBone.assertCaller(msg.sender, AllyLibrary.VAULT_BUTLER);
+        if (address(stakedToken) == WrappedEtherAddr) {
+            require(msg.value == amount, "PoolScatter: Invalid ether amount");
+            IWETH(WrappedEtherAddr).deposit{value: msg.value}();
+        } else {
+            shorterBone.poolTillIn(id, address(stakedToken), bidder, takeSize);
+        }
+        wrapRouter.wrap(id, address(stakedToken), address(this), takeSize, address(stakedToken));
+        totalBorrowAmount = totalBorrowAmount.sub(takeSize);
         shorterBone.poolTillOut(id, address(stableToken), bidder, amount);
     }
 
@@ -146,8 +167,8 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
         }
     }
 
-    function deliver(bool _isLegacyLeftover) external onlyTradingHub {
-        isLegacyLeftover = _isLegacyLeftover;
+    function markLegacy() external onlyTradingHub {
+        isLegacyLeftover = true;
     }
 
     function withdrawRemnantAsset(address position) external reentrantLock(103) {

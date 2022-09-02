@@ -185,11 +185,11 @@ contract WrapRouter is Ownable, Pausable {
         uint256 amount
     ) internal view returns (address) {
         uint256 balance0 = IERC20(token).balanceOf(account);
-        if (balance0 > amount) {
+        if (balance0 >= amount) {
             return token;
         }
         uint256 balance1 = IERC20(getInherit[token]).balanceOf(account);
-        if (balance1 > amount && strPool != account) {
+        if (balance1 >= amount && strPool != account) {
             return getInherit[token];
         }
     }
@@ -203,7 +203,7 @@ contract WrapRouter is Ownable, Pausable {
             return wrappedEtherAddr;
         }
         uint256 balance1 = IERC20(getInherit[wrappedEtherAddr]).balanceOf(account);
-        if (balance1 > value && strPool != account) {
+        if (balance1 >= value && strPool != account) {
             return getInherit[wrappedEtherAddr];
         }
     }

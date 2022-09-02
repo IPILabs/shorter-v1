@@ -20,7 +20,7 @@ contract VaultButlerImpl is ChainSchema, GaiaStorage, IVaultButler {
     uint256 internal constant OVERDRAWN_STATE = 4;
 
     modifier onlyRuler() {
-        require(committee.isRuler(msg.sender), "VaultButler: Caller is not ruler");
+        require(committee.isRuler(tx.origin), "VaultButler: Caller is not ruler");
         _;
     }
 

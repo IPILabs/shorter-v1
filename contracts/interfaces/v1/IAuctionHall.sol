@@ -8,8 +8,7 @@ interface IAuctionHall {
         view
         returns (
             address[] memory closedPositions,
-            address[] memory legacyPositions,
-            bytes[] memory _phase1Ranks
+            address[] memory legacyPositions
         );
 
     function initAuctionPosition(

@@ -58,8 +58,9 @@ contract AuctionStorage is TitanCoreStorage {
     IPriceOracle public priceOracle;
 
     mapping(uint256 => mapping(address => uint256)) userReentrantLocks;
+    mapping(address => mapping(address => uint256)) public userBidTimes;
+    mapping(address => mapping(address => uint256)) public userLastBidBlock;
 
-    mapping(address => bytes) public phase1Ranks;
     mapping(address => Phase1Info) public phase1Infos;
     mapping(address => Phase2Info) public phase2Infos;
 

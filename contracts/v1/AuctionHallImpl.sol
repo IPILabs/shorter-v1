@@ -35,7 +35,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
     }
 
     modifier onlyRuler() {
-        require(committee.isRuler(msg.sender), "AuctionHall: Caller is not a ruler");
+        require(committee.isRuler(tx.origin), "AuctionHall: Caller is not a ruler");
         _;
     }
 
@@ -49,6 +49,8 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         uint256 bidSize,
         uint256 priorityFee
     ) external payable whenNotPaused onlyRuler reentrantLock(1000) {
+        require(userBidTimes[tx.origin][position]++ < 20, "AuctionHall: User too many bids");
+        require(userLastBidBlock[msg.sender][position] != block.number, "AuctionHall: already bid");
         require(allPhase1BidRecords[position].length < 512, "AuctionHall: Too many bids");
         uint256 positionState = _getPositionState(position);
         require(positionState == CLOSING_STATE, "AuctionHall: Not a closing position");
@@ -74,7 +76,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         }
 
         allPhase1BidRecords[position].push(BidItem({takeBack: false, bidBlock: block.number.to64(), bidder: msg.sender, bidSize: bidSize, priorityFee: priorityFee}));
-
+        userLastBidBlock[msg.sender][position] = block.number;
         emit BidTanto(position, msg.sender, bidSize, priorityFee);
     }
 
@@ -104,37 +106,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         emit BidKatana(position, msg.sender, phase2Info.debtSize, phase2Info.usedCash, phase2Info.dexCoverReward);
     }
 
-    function _dexCover(
-        address _position,
-        uint256 _amountOut,
-        uint256 _amountInMax,
-        bytes memory path
-    ) internal returns (uint256 amountIn) {
-        AuctionPositonInfo storage auctionPositonInfo = auctionPositonInfoMap[_position];
-        (, address swapRouter, ) = shorterBone.getTokenInfo(auctionPositonInfo.stakedToken);
-        IDexCenter(dexCenter).checkPath(auctionPositonInfo.stakedToken, auctionPositonInfo.stableToken, swapRouter, path);
-        amountIn = IPool(auctionPositonInfo.strPool).dexCover(IDexCenter(dexCenter).isSwapRouterV3(swapRouter), shorterBone.TetherToken() == auctionPositonInfo.stableToken, dexCenter, swapRouter, _amountOut, _amountInMax, path);
-    }
-
-    function estimateAuctionPrice(address position) public view returns (uint256) {
-        (uint256 currentPrice, uint256 overdrawnPrice) = _estimatePositionPrice(position);
-        currentPrice = currentPrice.mul(102).div(100);
-        if (currentPrice > overdrawnPrice) {
-            return overdrawnPrice;
-        }
-        return currentPrice;
-    }
-
-    function inquire()
-        external
-        view
-        override
-        returns (
-            address[] memory closedPositions,
-            address[] memory legacyPositions,
-            bytes[] memory _phase1Ranks
-        )
-    {
+    function inquire() external view override returns (address[] memory closedPositions, address[] memory legacyPositions) {
         address[] memory closingPositions = tradingHub.getPositionsByState(CLOSING_STATE);
 
         uint256 posSize = closingPositions.length;
@@ -160,105 +132,13 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         }
 
         closedPositions = new address[](resClosedPosCount);
-        _phase1Ranks = new bytes[](resClosedPosCount);
         for (uint256 i = 0; i < resClosedPosCount; i++) {
             closedPositions[i] = closedPosContainer[i];
-            _phase1Ranks[i] = bidSorted(closedPosContainer[i]);
         }
 
         legacyPositions = new address[](resAbortedPosCount);
         for (uint256 i = 0; i < resAbortedPosCount; i++) {
             legacyPositions[i] = abortedPosContainer[i];
-        }
-    }
-
-    function _estimatePositionState(address position) internal view returns (uint256 positionState) {
-        (uint256 currentPrice, uint256 overdrawnPrice) = _estimatePositionPrice(position);
-        if (currentPrice > overdrawnPrice && phase1Infos[position].flag) {
-            return CLOSED_STATE;
-        }
-        positionState = currentPrice > overdrawnPrice ? OVERDRAWN_STATE : CLOSING_STATE;
-    }
-
-    function _estimatePositionPrice(address _position) internal view returns (uint256 currentPrice, uint256 overdrawnPrice) {
-        AuctionPositonInfo storage auctionPositonInfo = auctionPositonInfoMap[_position];
-        currentPrice = priceOracle.getLatestMixinPrice(auctionPositonInfo.stakedToken);
-        overdrawnPrice = auctionPositonInfo.unsettledCash.mul(10**(auctionPositonInfo.stakedTokenDecimals.add(18).sub(auctionPositonInfo.stableTokenDecimals))).div(auctionPositonInfo.totalSize);
-    }
-
-    function bidSorted(address position) public view returns (bytes memory) {
-        BidItem[] memory bidItems = allPhase1BidRecords[position];
-
-        uint256 bidItemSize = bidItems.length;
-        uint256[] memory _bidRanks = new uint256[](bidItemSize);
-
-        for (uint256 i = 0; i < bidItemSize; i++) {
-            _bidRanks[i] = i;
-        }
-
-        for (uint256 i = 0; i < bidItemSize; i++) {
-            uint256 minItemIndex = bidItemSize.sub(i + 1);
-            for (uint256 j = 0; j < bidItemSize.sub(i + 1); j++) {
-                if (
-                    bidItems[j].priorityFee < bidItems[minItemIndex].priorityFee ||
-                    (bidItems[j].priorityFee == bidItems[minItemIndex].priorityFee && bidItems[j].bidBlock > bidItems[minItemIndex].bidBlock) ||
-                    (bidItems[j].priorityFee == bidItems[minItemIndex].priorityFee && bidItems[j].bidBlock == bidItems[minItemIndex].bidBlock && bidItems[j].bidder > bidItems[minItemIndex].bidder)
-                ) {
-                    minItemIndex = j;
-                }
-            }
-
-            if (minItemIndex != bidItemSize.sub(i + 1)) {
-                BidItem memory tempItem = bidItems[minItemIndex];
-                bidItems[minItemIndex] = bidItems[bidItemSize.sub(i + 1)];
-                bidItems[bidItemSize.sub(i + 1)] = tempItem;
-
-                uint256 temp = _bidRanks[minItemIndex];
-                _bidRanks[minItemIndex] = _bidRanks[bidItemSize.sub(i + 1)];
-                _bidRanks[bidItemSize.sub(i + 1)] = temp;
-            }
-        }
-
-        return abi.encode(_bidRanks);
-    }
-
-    function verifyPhase1Ranks(address[] calldata closedPositions, bytes[] calldata _phase1Ranks) internal {
-        uint256[] memory lastPositionsState = _getBatchPositionState(closedPositions);
-        uint256 closingPositionSize = closedPositions.length;
-        for (uint256 i = 0; i < closingPositionSize; i++) {
-            uint256[] memory _bidRanks = abi.decode(_phase1Ranks[i], (uint256[]));
-            BidItem[] memory bidItems = allPhase1BidRecords[closedPositions[i]];
-            require(_bidRanks.length == bidItems.length, "AuctionHall: Invalid bidRanks size");
-            if (!((block.number.sub(auctionPositonInfoMap[closedPositions[i]].closingBlock) > phase1MaxBlock && phase1Infos[closedPositions[i]].flag) || (_estimatePositionState(closedPositions[i]) == CLOSED_STATE))) {
-                continue;
-            }
-            require(lastPositionsState[i] == CLOSING_STATE, "AuctionHall: Not a closing position");
-            phase1Ranks[closedPositions[i]] = _phase1Ranks[i];
-            _closePosition(closedPositions[i]);
-            emit AuctionFinished(closedPositions[i], 1);
-            if (_bidRanks.length <= 1) {
-                break;
-            }
-            uint256 bidRankLoops = _bidRanks.length.sub(1);
-
-            for (uint256 j = 0; j < bidRankLoops; j++) {
-                uint256 m = _bidRanks[j + 1];
-                uint256 n = _bidRanks[j];
-
-                if (bidItems[m].priorityFee < bidItems[n].priorityFee) {
-                    continue;
-                }
-
-                if (bidItems[m].priorityFee == bidItems[n].priorityFee && bidItems[m].bidBlock > bidItems[n].bidBlock) {
-                    continue;
-                }
-
-                if (bidItems[m].priorityFee == bidItems[n].priorityFee && bidItems[m].bidBlock == bidItems[n].bidBlock && bidItems[m].bidder > bidItems[n].bidder) {
-                    continue;
-                }
-
-                revert("AuctionHall: Invalid bidRanks");
-            }
         }
     }
 
@@ -286,6 +166,176 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         WrappedEtherAddr = _wrappedEtherAddr;
         phase1MaxBlock = _phase1MaxBlock;
         auctionMaxBlock = _auctionMaxBlock;
+    }
+
+    function initAuctionPosition(
+        address position,
+        address strPool,
+        uint256 closingBlock
+    ) external override onlyTradingHub {
+        (address stakedToken, address stableToken, uint256 stakedTokenDecimals, uint256 stableTokenDecimals) = _getMetaInfo(strPool);
+        (uint256 totalSize, uint256 unsettledCash) = _getPositionAssetInfo(strPool, position);
+        auctionPositonInfoMap[position] = AuctionPositonInfo({strPool: strPool, stakedToken: stakedToken, stableToken: stableToken, closingBlock: closingBlock, totalSize: totalSize, unsettledCash: unsettledCash, stakedTokenDecimals: stakedTokenDecimals, stableTokenDecimals: stableTokenDecimals});
+    }
+
+    function retrieve(address position, uint256[] calldata bidRanks) external whenNotPaused reentrantLock(1002) {
+        (uint256 stableTokenSize, uint256 debtTokenSize, uint256 priorityFee) = queryResidues(position, bidRanks, msg.sender);
+        require(stableTokenSize.add(debtTokenSize).add(priorityFee) > 0, "AuctionHall: No asset to retrieve for now");
+        _updateRulerAsset(position, msg.sender);
+        (, address strToken, , ) = tradingHub.getPositionState(position);
+        (, address stakedToken, , , , , , , , , , ) = IPool(strToken).getMetaInfo();
+
+        if (stableTokenSize > 0) {
+            IPool(strToken).stableTillOut(msg.sender, stableTokenSize);
+        }
+
+        if (debtTokenSize > 0) {
+            if (stakedToken == poolGuardian.WrappedEtherAddr()) {
+                IWETH(stakedToken).withdraw(debtTokenSize);
+                msg.sender.transfer(debtTokenSize);
+            } else {
+                shorterBone.tillOut(stakedToken, AllyLibrary.AUCTION_HALL, msg.sender, debtTokenSize);
+            }
+        }
+
+        if (priorityFee > 0) {
+            shorterBone.tillOut(ipistrToken, AllyLibrary.AUCTION_HALL, msg.sender, priorityFee);
+        }
+
+        emit Retrieve(position, stableTokenSize, debtTokenSize, priorityFee);
+    }
+
+    function bidSorted(address position) public view returns (uint256[] memory _bidRanks) {
+        BidItem[] memory bidItems = allPhase1BidRecords[position];
+
+        uint256 bidItemSize = bidItems.length;
+        _bidRanks = new uint256[](bidItemSize);
+
+        for (uint256 i = 0; i < bidItemSize; i++) {
+            _bidRanks[i] = i;
+        }
+
+        for (uint256 i = 0; i < bidItemSize; i++) {
+            uint256 minItemIndex = bidItemSize.sub(i + 1);
+            for (uint256 j = 0; j < bidItemSize.sub(i + 1); j++) {
+                if (
+                    bidItems[j].priorityFee < bidItems[minItemIndex].priorityFee ||
+                    (bidItems[j].priorityFee == bidItems[minItemIndex].priorityFee && bidItems[j].bidBlock > bidItems[minItemIndex].bidBlock) ||
+                    (bidItems[j].priorityFee == bidItems[minItemIndex].priorityFee && bidItems[j].bidBlock == bidItems[minItemIndex].bidBlock && bidItems[j].bidder > bidItems[minItemIndex].bidder)
+                ) {
+                    minItemIndex = j;
+                }
+            }
+
+            if (minItemIndex != bidItemSize.sub(i + 1)) {
+                BidItem memory tempItem = bidItems[minItemIndex];
+                bidItems[minItemIndex] = bidItems[bidItemSize.sub(i + 1)];
+                bidItems[bidItemSize.sub(i + 1)] = tempItem;
+
+                uint256 temp = _bidRanks[minItemIndex];
+                _bidRanks[minItemIndex] = _bidRanks[bidItemSize.sub(i + 1)];
+                _bidRanks[bidItemSize.sub(i + 1)] = temp;
+            }
+        }
+    }
+
+    function estimateAuctionPrice(address position) public view returns (uint256) {
+        (uint256 currentPrice, uint256 overdrawnPrice) = _estimatePositionPrice(position);
+        currentPrice = currentPrice.mul(102).div(100);
+        if (currentPrice > overdrawnPrice) {
+            return overdrawnPrice;
+        }
+        return currentPrice;
+    }
+
+    function queryResidues(
+        address position,
+        uint256[] calldata bidRanks,
+        address ruler
+    )
+        public
+        view
+        returns (
+            uint256 stableTokenSize,
+            uint256 debtTokenSize,
+            uint256 priorityFee
+        )
+    {
+        uint256 positionState = _getPositionState(position);
+        if (positionState == CLOSING_STATE) {
+            return (0, 0, 0);
+        }
+
+        uint256 remainingDebtSize = auctionPositonInfoMap[position].totalSize;
+        Phase2Info storage phase2Info = phase2Infos[position];
+        if (phase2Info.flag) {
+            if (ruler == phase2Info.rulerAddr && !phase2Info.isWithdrawn) {
+                stableTokenSize = phase2Info.dexCoverReward;
+            }
+            remainingDebtSize = remainingDebtSize.sub(phase2Info.debtSize);
+        }
+
+        (stableTokenSize, debtTokenSize, priorityFee) = _getPhase1Residues(ruler, position, remainingDebtSize, stableTokenSize, bidRanks, phase2Info.flag);
+    }
+
+    function _updateRulerAsset(address position, address ruler) internal {
+        if (ruler == phase2Infos[position].rulerAddr) {
+            phase2Infos[position].isWithdrawn = true;
+        }
+
+        BidItem[] storage bidItems = allPhase1BidRecords[position];
+
+        for (uint256 i = 0; i < bidItems.length; i++) {
+            if (bidItems[i].bidder == ruler) {
+                bidItems[i].takeBack = true;
+            }
+        }
+    }
+
+    function _getPhase1Residues(
+        address _ruler,
+        address _position,
+        uint256 _remainingDebtSize,
+        uint256 _stableTokenSize,
+        uint256[] calldata _bidRanks,
+        bool _phase2Flag
+    )
+        internal
+        view
+        returns (
+            uint256 stableTokenSize,
+            uint256 debtTokenSize,
+            uint256 priorityFee
+        )
+    {
+        BidItem[] storage bidItems = allPhase1BidRecords[_position];
+        require(_verifyPhase1BidRanks(_position, _bidRanks), "AuctionHall: Invalid bidRanks params");
+        Phase1Info storage phase1Info = phase1Infos[_position];
+        AuctionPositonInfo storage auctionPositonInfo = auctionPositonInfoMap[_position];
+        uint256 phase1BidCount = _bidRanks.length;
+        stableTokenSize = stableTokenSize.add(_stableTokenSize);
+        for (uint256 i = 0; i < phase1BidCount; i++) {
+            uint256 wonSize;
+            if (!phase1Info.flag && !_phase2Flag) {
+                wonSize = 0;
+            } else if (_remainingDebtSize >= bidItems[_bidRanks[i]].bidSize) {
+                wonSize = bidItems[_bidRanks[i]].bidSize;
+                _remainingDebtSize = _remainingDebtSize.sub(wonSize);
+            } else {
+                wonSize = _remainingDebtSize;
+                _remainingDebtSize = 0;
+            }
+            if (bidItems[_bidRanks[i]].bidder == _ruler && !bidItems[_bidRanks[i]].takeBack) {
+                if (wonSize == 0) {
+                    debtTokenSize = debtTokenSize.add(bidItems[_bidRanks[i]].bidSize);
+                    priorityFee = priorityFee.add(bidItems[_bidRanks[i]].priorityFee);
+                } else {
+                    debtTokenSize = debtTokenSize.add(bidItems[_bidRanks[i]].bidSize).sub(wonSize);
+                    uint256 stableTokenIncreased = wonSize.mul(phase1Info.liquidationPrice).div(10**(auctionPositonInfo.stakedTokenDecimals.add(18).sub(auctionPositonInfo.stableTokenDecimals)));
+                    stableTokenSize = stableTokenSize.add(stableTokenIncreased);
+                }
+            }
+        }
     }
 
     function _getPositionState(address _position) internal view returns (uint256 positionState) {
@@ -323,133 +373,67 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         IPool(auctionPositonInfo.strPool).auctionClosed(position, phase1UsedUnsettledCash, phase2Infos[position].usedCash, 0);
     }
 
-    function queryResidues(address position, address ruler)
-        public
-        view
-        returns (
-            uint256 stableTokenSize,
-            uint256 debtTokenSize,
-            uint256 priorityFee
-        )
-    {
-        uint256 positionState = _getPositionState(position);
-        if (positionState == CLOSING_STATE) {
-            return (0, 0, 0);
+    function _estimatePositionState(address position) internal view returns (uint256 positionState) {
+        (uint256 currentPrice, uint256 overdrawnPrice) = _estimatePositionPrice(position);
+        if (currentPrice > overdrawnPrice && phase1Infos[position].flag) {
+            return CLOSED_STATE;
         }
-
-        uint256 remainingDebtSize = auctionPositonInfoMap[position].totalSize;
-        Phase2Info storage phase2Info = phase2Infos[position];
-        if (phase2Info.flag) {
-            if (ruler == phase2Info.rulerAddr && !phase2Info.isWithdrawn) {
-                stableTokenSize = phase2Info.dexCoverReward;
-            }
-            remainingDebtSize = remainingDebtSize.sub(phase2Info.debtSize);
-        }
-
-        (stableTokenSize, debtTokenSize, priorityFee) = _getPhase1Residues(ruler, position, remainingDebtSize, stableTokenSize, phase2Info.flag);
+        positionState = currentPrice > overdrawnPrice ? OVERDRAWN_STATE : CLOSING_STATE;
     }
 
-    function retrieve(address position) external whenNotPaused reentrantLock(1002) {
-        (uint256 stableTokenSize, uint256 debtTokenSize, uint256 priorityFee) = queryResidues(position, msg.sender);
-        require(stableTokenSize.add(debtTokenSize).add(priorityFee) > 0, "AuctionHall: No asset to retrieve for now");
-        _updateRulerAsset(position, msg.sender);
-        (, address strToken, , ) = tradingHub.getPositionState(position);
-        (, address stakedToken, , , , , , , , , , ) = IPool(strToken).getMetaInfo();
-
-        if (stableTokenSize > 0) {
-            IPool(strToken).stableTillOut(msg.sender, stableTokenSize);
-        }
-
-        if (debtTokenSize > 0) {
-            if (stakedToken == poolGuardian.WrappedEtherAddr()) {
-                IWETH(stakedToken).withdraw(debtTokenSize);
-                msg.sender.transfer(debtTokenSize);
-            } else {
-                shorterBone.tillOut(stakedToken, AllyLibrary.AUCTION_HALL, msg.sender, debtTokenSize);
-            }
-        }
-
-        if (priorityFee > 0) {
-            shorterBone.tillOut(ipistrToken, AllyLibrary.AUCTION_HALL, msg.sender, priorityFee);
-        }
-
-        emit Retrieve(position, stableTokenSize, debtTokenSize, priorityFee);
-    }
-
-    function initAuctionPosition(
-        address position,
-        address strPool,
-        uint256 closingBlock
-    ) external override onlyTradingHub {
-        (address stakedToken, address stableToken, uint256 stakedTokenDecimals, uint256 stableTokenDecimals) = _getMetaInfo(strPool);
-        (uint256 totalSize, uint256 unsettledCash) = _getPositionAssetInfo(strPool, position);
-        auctionPositonInfoMap[position] = AuctionPositonInfo({strPool: strPool, stakedToken: stakedToken, stableToken: stableToken, closingBlock: closingBlock, totalSize: totalSize, unsettledCash: unsettledCash, stakedTokenDecimals: stakedTokenDecimals, stableTokenDecimals: stableTokenDecimals});
-    }
-
-    function _updateRulerAsset(address position, address ruler) internal {
-        if (ruler == phase2Infos[position].rulerAddr) {
-            phase2Infos[position].isWithdrawn = true;
-        }
-
-        BidItem[] storage bidItems = allPhase1BidRecords[position];
-
-        for (uint256 i = 0; i < bidItems.length; i++) {
-            if (bidItems[i].bidder == ruler) {
-                bidItems[i].takeBack = true;
-            }
-        }
-    }
-
-    function _getPhase1Residues(
-        address _ruler,
-        address _position,
-        uint256 _remainingDebtSize,
-        uint256 _stableTokenSize,
-        bool _phase2Flag
-    )
-        internal
-        view
-        returns (
-            uint256 stableTokenSize,
-            uint256 debtTokenSize,
-            uint256 priorityFee
-        )
-    {
-        BidItem[] storage bidItems = allPhase1BidRecords[_position];
-        uint256[] memory bidRanks;
-        if (phase1Ranks[_position].length == 0) {
-            bidRanks = new uint256[](bidItems.length);
-            for (uint256 i = 0; i < bidItems.length; i++) {
-                bidRanks[i] = i;
-            }
-        } else {
-            bidRanks = abi.decode(phase1Ranks[_position], (uint256[]));
-        }
-        Phase1Info storage phase1Info = phase1Infos[_position];
+    function _estimatePositionPrice(address _position) internal view returns (uint256 currentPrice, uint256 overdrawnPrice) {
         AuctionPositonInfo storage auctionPositonInfo = auctionPositonInfoMap[_position];
-        uint256 phase1BidCount = bidRanks.length;
-        stableTokenSize = stableTokenSize.add(_stableTokenSize);
-        for (uint256 i = 0; i < phase1BidCount; i++) {
-            uint256 wonSize;
-            if (!phase1Info.flag && !_phase2Flag) {
-                wonSize = 0;
-            } else if (_remainingDebtSize >= bidItems[bidRanks[i]].bidSize) {
-                wonSize = bidItems[bidRanks[i]].bidSize;
-                _remainingDebtSize = _remainingDebtSize.sub(wonSize);
-            } else {
-                wonSize = _remainingDebtSize;
-                _remainingDebtSize = 0;
+        currentPrice = priceOracle.getLatestMixinPrice(auctionPositonInfo.stakedToken);
+        overdrawnPrice = auctionPositonInfo.unsettledCash.mul(10**(auctionPositonInfo.stakedTokenDecimals.add(18).sub(auctionPositonInfo.stableTokenDecimals))).div(auctionPositonInfo.totalSize);
+    }
+
+    function _dexCover(
+        address _position,
+        uint256 _amountOut,
+        uint256 _amountInMax,
+        bytes memory path
+    ) internal returns (uint256 amountIn) {
+        AuctionPositonInfo storage auctionPositonInfo = auctionPositonInfoMap[_position];
+        (, address swapRouter, ) = shorterBone.getTokenInfo(auctionPositonInfo.stakedToken);
+        IDexCenter(dexCenter).checkPath(auctionPositonInfo.stakedToken, auctionPositonInfo.stableToken, swapRouter, path);
+        amountIn = IPool(auctionPositonInfo.strPool).dexCover(IDexCenter(dexCenter).isSwapRouterV3(swapRouter), shorterBone.TetherToken() == auctionPositonInfo.stableToken, dexCenter, swapRouter, _amountOut, _amountInMax, path);
+    }
+
+    function _updatePhase1State(address[] calldata closedPositions) internal {
+        uint256[] memory lastPositionsState = _getBatchPositionState(closedPositions);
+        uint256 closingPositionSize = closedPositions.length;
+        for (uint256 i = 0; i < closingPositionSize; i++) {
+            if (!((block.number.sub(auctionPositonInfoMap[closedPositions[i]].closingBlock) > phase1MaxBlock && phase1Infos[closedPositions[i]].flag) || (_estimatePositionState(closedPositions[i]) == CLOSED_STATE))) {
+                continue;
             }
-            if (bidItems[bidRanks[i]].bidder == _ruler && !bidItems[bidRanks[i]].takeBack) {
-                if (wonSize == 0) {
-                    debtTokenSize = debtTokenSize.add(bidItems[bidRanks[i]].bidSize);
-                    priorityFee = priorityFee.add(bidItems[bidRanks[i]].priorityFee);
-                } else {
-                    debtTokenSize = debtTokenSize.add(bidItems[bidRanks[i]].bidSize).sub(wonSize);
-                    uint256 stableTokenIncreased = wonSize.mul(phase1Info.liquidationPrice).div(10**(auctionPositonInfo.stakedTokenDecimals.add(18).sub(auctionPositonInfo.stableTokenDecimals)));
-                    stableTokenSize = stableTokenSize.add(stableTokenIncreased);
-                }
-            }
+            require(lastPositionsState[i] == CLOSING_STATE, "AuctionHall: Not a closing position");
+            _closePosition(closedPositions[i]);
+            emit AuctionFinished(closedPositions[i], 1);
         }
+    }
+
+    function _verifyPhase1BidRanks(address _position, uint256[] calldata _bidRanks) internal view returns (bool) {
+        BidItem[] memory bidItems = allPhase1BidRecords[_position];
+        require(_bidRanks.length == bidItems.length, "AuctionHall: Invalid bidRanks size");
+        uint256 bidRankLoops = _bidRanks.length.sub(1);
+        for (uint256 j = 0; j < bidRankLoops; j++) {
+            uint256 m = _bidRanks[j + 1];
+            uint256 n = _bidRanks[j];
+
+            if (bidItems[m].priorityFee < bidItems[n].priorityFee) {
+                continue;
+            }
+
+            if (bidItems[m].priorityFee == bidItems[n].priorityFee && bidItems[m].bidBlock > bidItems[n].bidBlock) {
+                continue;
+            }
+
+            if (bidItems[m].priorityFee == bidItems[n].priorityFee && bidItems[m].bidBlock == bidItems[n].bidBlock && bidItems[m].bidder > bidItems[n].bidder) {
+                continue;
+            }
+
+            return false;
+        }
+        return true;
     }
 }

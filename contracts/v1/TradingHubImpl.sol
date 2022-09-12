@@ -174,13 +174,13 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
             require(poolStatus == IPoolGuardian.PoolStatus.RUNNING, "TradingHub: Pool is not running");
             (, , , , , , , uint256 endBlock, , , , ) = IPool(strPool).getMetaInfo();
             require(block.number > endBlock, "TradingHub: Pool is not Liquidating");
+            if (batchPositionInfos[i].positions.length > 0) {
+                IPool(strPool).batchUpdateFundingFee(batchPositionInfos[i].positions);
+            }
             for (uint256 j = 0; j < batchPositionInfos[i].positions.length; j++) {
                 PositionIndex storage positionInfo = positionInfoMap[batchPositionInfos[i].positions[j]];
                 require(positionInfo.positionState == OPEN_STATE, "TradingHub: Position is not open");
                 _updatePositionState(batchPositionInfos[i].positions[j], CLOSING_STATE);
-            }
-            if (batchPositionInfos[i].positions.length > 0) {
-                IPool(strPool).batchUpdateFundingFee(batchPositionInfos[i].positions);
             }
             if (poolStatsMap[batchPositionInfos[i].poolId].opens > 0) break;
             if (poolStatsMap[batchPositionInfos[i].poolId].closings > 0 || poolStatsMap[batchPositionInfos[i].poolId].overdrawns > 0) {

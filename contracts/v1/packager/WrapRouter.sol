@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
+pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../../interfaces/v1/IPoolGuardian.sol";
@@ -13,9 +14,11 @@ contract WrapRouter is Ownable, Pausable {
     address public immutable poolGuardian;
     address public immutable wrappedEtherAddr;
     mapping(address => uint256) public controvertibleAmounts;
-    mapping(address => mapping(address => uint256)) public transferableAmounts;
-    mapping(address => address) public getGrandetie;
-    mapping(address => address) public getInherit;
+    mapping(address => mapping(address => uint256)) private transferableAmounts;
+    mapping(address => address[]) private grandeties;
+    mapping(address => address) public inherits;
+    mapping(address => uint256) private insideLobes;
+    mapping(address => uint256) private outsideLobes;
 
     bytes4 private constant SELECTOR = bytes4(keccak256(bytes("transferFrom(address,address,uint256)")));
 
@@ -43,8 +46,8 @@ contract WrapRouter is Ownable, Pausable {
             transferableAmounts[account][msg.sender] = transferableAmounts[account][msg.sender].add(amount);
         }
         controvertibleAmounts[msg.sender] = controvertibleAmounts[msg.sender].add(amount);
-        _safeTransferFrom(token, msg.sender, getGrandetie[token], amount);
-        IWrappedToken(getInherit[token]).mint(msg.sender, amount);
+        _deposit(token, msg.sender, amount);
+        IWrappedToken(inherits[token]).mint(msg.sender, amount);
     }
 
     function unwrap(
@@ -58,14 +61,14 @@ contract WrapRouter is Ownable, Pausable {
         } else {
             uint256 stakedBal = transferableAmounts[account][msg.sender];
             if (stakedBal < amount) {
-                return getInherit[token];
+                return inherits[token];
             }
             transferableAmounts[account][msg.sender] = stakedBal.sub(amount);
         }
 
         controvertibleAmounts[msg.sender] = controvertibleAmounts[msg.sender].sub(amount);
-        IWrappedToken(getInherit[token]).burn(msg.sender, amount);
-        _safeTransferFrom(token, getGrandetie[token], msg.sender, amount);
+        IWrappedToken(inherits[token]).burn(msg.sender, amount);
+        _withdraw(token, msg.sender, amount);
         stakedToken = token;
     }
 
@@ -80,23 +83,19 @@ contract WrapRouter is Ownable, Pausable {
         transferableAmounts[to][msg.sender] = transferableAmounts[to][msg.sender].add(amount);
     }
 
-    function setGrandeties(address[] calldata _tokens, address[] calldata _grandetie) external onlyOwner {
-        require(_tokens.length == _grandetie.length, "WrapRouter: Invaild params");
-
-        for (uint256 i = 0; i < _tokens.length; i++) {
-            getGrandetie[_tokens[i]] = _grandetie[i];
-        }
+    function setGrandeties(address _token, address[] calldata _grandeties) external onlyOwner {
+        grandeties[_token] = _grandeties;
     }
 
     function setWrappedTokens(address[] calldata _tokens, address[] calldata _wrappedTokens) external onlyOwner {
         require(_tokens.length == _wrappedTokens.length, "WrapRouter: Invaild params");
 
         for (uint256 i = 0; i < _tokens.length; i++) {
-            getInherit[_tokens[i]] = _wrappedTokens[i];
+            inherits[_tokens[i]] = _wrappedTokens[i];
         }
     }
 
-    function getTransferableAmount(address account, address strPool) public view returns (uint256 amount) {
+    function getTransferableAmount(address account, address strPool) external view returns (uint256 amount) {
         return transferableAmounts[account][strPool];
     }
 
@@ -107,10 +106,10 @@ contract WrapRouter is Ownable, Pausable {
         uint256 amount,
         uint256 value
     ) public view returns (address stakedToken) {
-        if (token == wrappedEtherAddr && getInherit[token] != address(0)) {
+        if (token == wrappedEtherAddr && inherits[token] != address(0)) {
             stakedToken = _wrappableWithETH(strPool, account, value);
         }
-        if (token != wrappedEtherAddr && getInherit[token] != address(0)) {
+        if (token != wrappedEtherAddr && inherits[token] != address(0)) {
             stakedToken = _wrappableWithToken(token, strPool, account, amount);
         }
     }
@@ -123,7 +122,7 @@ contract WrapRouter is Ownable, Pausable {
         uint256 transferableAmount = transferableAmounts[account][msg.sender];
         uint256 controvertibleAmount = controvertibleAmounts[msg.sender];
         if (transferableAmount < amount) {
-            return getInherit[token];
+            return inherits[token];
         }
         return controvertibleAmount < amount ? address(0) : token;
     }
@@ -155,9 +154,45 @@ contract WrapRouter is Ownable, Pausable {
             withdrawAmount = controvertibleAmount.mul(userShare).mul(percent).div(1e20);
             burnAmount = transferableAmount.mul(percent).div(100);
         } else {
-            stakedToken = getInherit[token];
+            stakedToken = inherits[token];
             withdrawAmount = amount.mul(percent).div(100);
             burnAmount = withdrawAmount;
+        }
+    }
+
+    function _deposit(
+        address token,
+        address from,
+        uint256 amount
+    ) internal {
+        address grandetie = grandeties[token][insideLobes[token]];
+        require(grandetie != address(0), "WrapRouter: Grandetie is zero address");
+        _safeTransferFrom(token, from, grandetie, amount);
+        insideLobes[token] = insideLobes[token].add(1) % grandeties[token].length;
+    }
+
+    function _withdraw(
+        address token,
+        address to,
+        uint256 amount
+    ) internal {
+        uint256 lobe = outsideLobes[token];
+        uint256 grandetieSize = grandeties[token].length;
+
+        for (uint256 i = 0; i < grandetieSize; i++) {
+            uint256 slot = lobe.add(i) % grandetieSize;
+            address grandetie = grandeties[token][slot];
+            uint256 grandetieBal = IERC20(token).balanceOf(grandetie);
+
+            if (grandetieBal >= amount) {
+                _safeTransferFrom(token, grandetie, to, amount);
+                outsideLobes[token] = slot.add(1) % grandetieSize;
+                return;
+            }
+            if (grandetieBal != 0) {
+                _safeTransferFrom(token, grandetie, to, grandetieBal);
+                amount = amount.sub(grandetieBal);
+            }
         }
     }
 
@@ -188,9 +223,9 @@ contract WrapRouter is Ownable, Pausable {
         if (balance0 >= amount) {
             return token;
         }
-        uint256 balance1 = IERC20(getInherit[token]).balanceOf(account);
+        uint256 balance1 = IERC20(inherits[token]).balanceOf(account);
         if (balance1 >= amount && strPool != account) {
-            return getInherit[token];
+            return inherits[token];
         }
     }
 
@@ -202,9 +237,9 @@ contract WrapRouter is Ownable, Pausable {
         if (value > 0) {
             return wrappedEtherAddr;
         }
-        uint256 balance1 = IERC20(getInherit[wrappedEtherAddr]).balanceOf(account);
+        uint256 balance1 = IERC20(inherits[wrappedEtherAddr]).balanceOf(account);
         if (balance1 >= value && strPool != account) {
-            return getInherit[wrappedEtherAddr];
+            return inherits[wrappedEtherAddr];
         }
     }
 }

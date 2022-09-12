@@ -25,13 +25,29 @@ contract FarmingImpl is ChainSchema, FarmingStorage, IFarming {
     using SafeToken for ISRC20;
     using BoringMath for uint256;
 
-    mapping(uint256 => mapping(address => UserInfo)) public tokenUserInfoMap;
+    uint256 public TOKEN_0_DECIMAL_SCALER;
+    uint256 public TOKEN_1_DECIMAL_SCALER;
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
-    function initialize(address _shorterBone) external isSavior {
+    function initialize(
+        address _shorterBone,
+        address _nonfungiblePositionManager,
+        address _uniswapV3Pool,
+        address _ipistrToken
+    ) external isSavior {
         require(!_initialized, "Farming: Already initialized");
         shorterBone = IShorterBone(_shorterBone);
+        nonfungiblePositionManager = INonfungiblePositionManager(_nonfungiblePositionManager);
+        ipistrToken = _ipistrToken;
+        uniswapV3Pool = IUniswapV3Pool(_uniswapV3Pool);
+        if (uniswapV3Pool.token0() == _ipistrToken) {
+            TOKEN_0_DECIMAL_SCALER = 1e12;
+            TOKEN_1_DECIMAL_SCALER = 1e22;
+        } else {
+            TOKEN_0_DECIMAL_SCALER = 1e22;
+            TOKEN_1_DECIMAL_SCALER = 1e12;
+        }
         _initialized = true;
     }
 
@@ -62,8 +78,8 @@ contract FarmingImpl is ChainSchema, FarmingStorage, IFarming {
         farmingRewardModel.harvestByPool(msg.sender);
         UserInfo storage userInfo = tokenUserInfoMap[tokenId][msg.sender];
         userInfo.amount = userInfo.amount.add(liquidity);
-        userInfo.token0Debt = pool.token0PerLp.mul(userInfo.amount).div(1e12);
-        userInfo.token1Debt = pool.token1PerLp.mul(userInfo.amount).div(1e12);
+        userInfo.token0Debt = pool.token0PerLp.mul(userInfo.amount).div(TOKEN_0_DECIMAL_SCALER);
+        userInfo.token1Debt = pool.token1PerLp.mul(userInfo.amount).div(TOKEN_1_DECIMAL_SCALER);
         userStakedAmount[msg.sender] = userStakedAmount[msg.sender].add(liquidity.mul(pool.midPrice.div(1e12)));
         emit Stake(msg.sender, tokenId, liquidity, amount0, amount1);
     }
@@ -85,8 +101,8 @@ contract FarmingImpl is ChainSchema, FarmingStorage, IFarming {
         (amount0, amount1) = nonfungiblePositionManager.collect(collectParams);
         farmingRewardModel.harvestByPool(msg.sender);
         userInfo.amount = userInfo.amount.sub(liquidity);
-        userInfo.token0Debt = pool.token0PerLp.mul(userInfo.amount).div(1e12);
-        userInfo.token1Debt = pool.token1PerLp.mul(userInfo.amount).div(1e12);
+        userInfo.token0Debt = pool.token0PerLp.mul(userInfo.amount).div(TOKEN_0_DECIMAL_SCALER);
+        userInfo.token1Debt = pool.token1PerLp.mul(userInfo.amount).div(TOKEN_1_DECIMAL_SCALER);
         userStakedAmount[msg.sender] = userStakedAmount[msg.sender].sub(liquidity.mul(pool.midPrice.div(1e12)));
         shorterBone.tillOut(pool.token0, AllyLibrary.FARMING, msg.sender, amount0.add(token0Reward));
         shorterBone.tillOut(pool.token1, AllyLibrary.FARMING, msg.sender, amount1.add(token1Reward));
@@ -99,8 +115,8 @@ contract FarmingImpl is ChainSchema, FarmingStorage, IFarming {
         (, , , , , , , uint128 _liquidity, , , , ) = nonfungiblePositionManager.positions(tokenId);
         if (_liquidity > 0) {
             PoolInfo storage pool = poolInfoMap[tokenId];
-            pool.token0PerLp = pool.token0PerLp.add(amount0.mul(1e12).div(uint256(_liquidity)));
-            pool.token1PerLp = pool.token1PerLp.add(amount1.mul(1e12).div(uint256(_liquidity)));
+            pool.token0PerLp = pool.token0PerLp.add(amount0.mul(TOKEN_0_DECIMAL_SCALER).div(uint256(_liquidity)));
+            pool.token1PerLp = pool.token1PerLp.add(amount1.mul(TOKEN_1_DECIMAL_SCALER).div(uint256(_liquidity)));
         }
     }
 
@@ -118,10 +134,10 @@ contract FarmingImpl is ChainSchema, FarmingStorage, IFarming {
         stakedAmount = userInfo.amount;
         if (stakedAmount > 0) {
             (, , , , , , , uint128 _liquidity, , , uint256 tokensOwed0, uint256 tokensOwed1) = nonfungiblePositionManager.positions(tokenId);
-            uint256 token0PerLp = pool.token0PerLp.add(tokensOwed0.mul(1e12).div(uint256(_liquidity)));
-            uint256 token1PerLp = pool.token1PerLp.add(tokensOwed1.mul(1e12).div(uint256(_liquidity)));
-            token0Rewards = (token0PerLp.mul(stakedAmount).div(1e12)).sub(userInfo.token0Debt);
-            token1Rewards = (token1PerLp.mul(stakedAmount).div(1e12)).sub(userInfo.token1Debt);
+            uint256 token0PerLp = pool.token0PerLp.add(tokensOwed0.mul(TOKEN_0_DECIMAL_SCALER).div(uint256(_liquidity)));
+            uint256 token1PerLp = pool.token1PerLp.add(tokensOwed1.mul(TOKEN_1_DECIMAL_SCALER).div(uint256(_liquidity)));
+            token0Rewards = (token0PerLp.mul(stakedAmount).div(TOKEN_0_DECIMAL_SCALER)).sub(userInfo.token0Debt);
+            token1Rewards = (token1PerLp.mul(stakedAmount).div(TOKEN_1_DECIMAL_SCALER)).sub(userInfo.token1Debt);
         }
     }
 
@@ -254,17 +270,7 @@ contract FarmingImpl is ChainSchema, FarmingStorage, IFarming {
         voteRewardModel = IVoteRewardModel(_voteRewardModel);
     }
 
-    function setNonfungiblePositionManager(
-        INonfungiblePositionManager _nonfungiblePositionManager,
-        IUniswapV3Pool _uniswapV3Pool,
-        address _ipistrToken
-    ) external isKeeper {
-        nonfungiblePositionManager = _nonfungiblePositionManager;
-        ipistrToken = _ipistrToken;
-        uniswapV3Pool = _uniswapV3Pool;
-    }
-
-    function createPool(INonfungiblePositionManager.MintParams calldata params) external isKeeper returns (uint256) {
+    function createPool(INonfungiblePositionManager.MintParams calldata params) external isKeeper {
         shorterBone.tillIn(params.token0, msg.sender, AllyLibrary.FARMING, params.amount0Desired);
         shorterBone.tillIn(params.token1, msg.sender, AllyLibrary.FARMING, params.amount1Desired);
         (uint256 tokenId, uint128 liquidity, , ) = nonfungiblePositionManager.mint(params);
@@ -346,8 +352,8 @@ contract FarmingImpl is ChainSchema, FarmingStorage, IFarming {
         }
 
         UserInfo storage userInfo = tokenUserInfoMap[tokenId][user];
-        userInfo.token0Debt = pool.token0PerLp.mul(userInfo.amount).div(1e12);
-        userInfo.token1Debt = pool.token1PerLp.mul(userInfo.amount).div(1e12);
+        userInfo.token0Debt = pool.token0PerLp.mul(userInfo.amount).div(TOKEN_0_DECIMAL_SCALER);
+        userInfo.token1Debt = pool.token1PerLp.mul(userInfo.amount).div(TOKEN_1_DECIMAL_SCALER);
     }
 
     function _setPoolInfo(uint256 tokenId) internal returns (uint256 midPrice) {

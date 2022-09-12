@@ -45,4 +45,5 @@ contract FarmingStorage is TitanCoreStorage {
     mapping(address => UserInfo) public userInfoMap;
     mapping(uint256 => PoolInfo) public poolInfoMap;
     mapping(address => uint256) public userStakedAmount;
+    mapping(uint256 => mapping(address => UserInfo)) public tokenUserInfoMap;
 }

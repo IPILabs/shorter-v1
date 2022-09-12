@@ -54,5 +54,5 @@ interface IWrapRouter {
         uint256 amount
     ) external;
 
-    function getInherit(address token) external view returns (address wrappedToken);
+    function inherits(address token) external view returns (address wrappedToken);
 }

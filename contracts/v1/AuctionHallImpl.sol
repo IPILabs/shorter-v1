@@ -370,7 +370,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         Phase1Info storage phase1Info = phase1Infos[position];
         uint256 phase1WonSize = phase1Info.bidSize > auctionPositonInfo.totalSize ? auctionPositonInfo.totalSize : phase1Info.bidSize;
         uint256 phase1UsedUnsettledCash = phase1WonSize.mul(phase1Info.liquidationPrice).div(10**(auctionPositonInfo.stakedTokenDecimals.add(18).sub(auctionPositonInfo.stableTokenDecimals)));
-        IPool(auctionPositonInfo.strPool).auctionClosed(position, phase1UsedUnsettledCash, phase2Infos[position].usedCash, 0);
+        IPool(auctionPositonInfo.strPool).auctionClosed(position, phase1UsedUnsettledCash, phase2Infos[position].usedCash.add(phase2Infos[position].dexCoverReward), 0);
     }
 
     function _estimatePositionState(address position) internal view returns (uint256 positionState) {

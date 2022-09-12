@@ -97,7 +97,7 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         stakedToken = ISRC20(_stakedToken);
         stableToken = ISRC20(_stableToken);
         wrapRouter = IWrapRouter(_wrapRouter);
-        wrappedToken = ISRC20(wrapRouter.getInherit(_stakedToken));
+        wrappedToken = ISRC20(wrapRouter.inherits(_stakedToken));
         stakedTokenDecimals = stakedToken.decimals();
         stableTokenDecimals = stableToken.decimals();
         creator = _creator;

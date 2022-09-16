@@ -143,16 +143,29 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         return (creator, address(stakedToken), address(stableToken), address(wrappedToken), uint256(leverage), uint256(durationDays), uint256(startBlock), uint256(endBlock), id, uint256(stakedTokenDecimals), uint256(stableTokenDecimals), stateFlag);
     }
 
-    function _tryWithdrawByPercent(uint256 percent) internal returns (uint256 withdrawAmount, uint256 burnAmount) {
+    function getWithdrawableAmountByPercent(address account, uint256 percent)
+        public
+        view
+        returns (
+            uint256 withdrawAmount,
+            uint256 burnAmount,
+            uint256 stableTokenAmount
+        )
+    {
         require(percent > 0 && percent <= 100, "PoolGarner: Invalid withdraw percentage");
-        uint256 _userShare;
+        require(stateFlag == IPoolGuardian.PoolStatus.ENDED, "PoolGarner: Pool is not ended");
         address stakedToken_;
-        (stakedToken_, withdrawAmount, burnAmount, _userShare) = wrapRouter.getUnwrappableAmountByPercent(percent, msg.sender, address(stakedToken), balanceOf[msg.sender], totalBorrowAmount);
+        uint256 _userShare;
+        (stakedToken_, withdrawAmount, burnAmount, _userShare) = wrapRouter.getUnwrappableAmountByPercent(percent, account, address(stakedToken), balanceOf[account], totalBorrowAmount);
         require(stakedToken_ != address(0), "PoolGarner: Insufficient liquidity");
-        if (_userShare > 0) {
-            uint256 usdAmount = stableToken.balanceOf(address(this)).mul(_userShare).mul(percent).div(1e20);
-            shorterBone.poolTillOut(id, address(stableToken), msg.sender, usdAmount);
+        stableTokenAmount = stableTokenAmountLeftover.mul(_userShare).mul(percent).div(1e20);
         }
+
+    function _tryWithdrawByPercent(uint256 percent) internal returns (uint256 withdrawAmount, uint256 burnAmount) {
+        uint256 stableTokenAmount;
+        (withdrawAmount, burnAmount, stableTokenAmount) = getWithdrawableAmountByPercent(msg.sender, percent);
+        stableTokenAmountLeftover = stableTokenAmountLeftover.sub(stableTokenAmount);
+        shorterBone.poolTillOut(id, address(stableToken), msg.sender, stableTokenAmount);
     }
 
     function _tryWithdrawByAmount(uint256 amount) internal view returns (uint256 withdrawAmount, uint256 burnAmount) {

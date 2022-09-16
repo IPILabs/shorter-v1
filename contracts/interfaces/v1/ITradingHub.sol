@@ -19,6 +19,16 @@ interface ITradingHub {
             uint256 positionState
         );
 
+    function getPoolStats(uint256 poolId)
+        external
+        view
+        returns (
+            uint256 opens,
+            uint256 closings,
+            uint256 legacies,
+            uint256 ends
+        );
+
     function getBatchPositionState(address[] calldata positions) external view returns (uint256[] memory positionsState);
 
     function getPositionsByPoolId(uint256 poolId, uint256 positionState) external view returns (address[] memory);

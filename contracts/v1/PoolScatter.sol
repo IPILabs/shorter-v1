@@ -114,8 +114,7 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
     function auctionClosed(
         address position,
         uint256 phase1Used,
-        uint256 phase2Used,
-        uint256 legacyUsed
+        uint256 phase2Used
     ) external onlyAuction {
         PositionInfo storage positionInfo = positionInfoMap[position];
         if (phase1Used > 0 || phase2Used > 0) {
@@ -123,7 +122,7 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
             totalBorrowAmount = totalBorrowAmount.sub(positionInfo.totalSize);
         }
         positionInfo.closedFlag = true;
-        positionInfo.remnantAsset = positionInfo.unsettledCash.sub(phase1Used).sub(phase2Used).sub(legacyUsed);
+        positionInfo.remnantAsset = positionInfo.unsettledCash.sub(phase1Used).sub(phase2Used);
     }
 
     function dexCover(
@@ -146,18 +145,22 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
 
     function takeLegacyStableToken(
         address bidder,
+        address position,
         uint256 amount,
         uint256 takeSize
     ) external payable {
         shorterBone.assertCaller(msg.sender, AllyLibrary.VAULT_BUTLER);
         if (address(stakedToken) == WrappedEtherAddr) {
-            require(msg.value == amount, "PoolScatter: Invalid ether amount");
+            require(msg.value == takeSize, "PoolScatter: Invalid ether amount");
             IWETH(WrappedEtherAddr).deposit{value: msg.value}();
         } else {
             shorterBone.poolTillIn(id, address(stakedToken), bidder, takeSize);
         }
         wrapRouter.wrap(id, address(stakedToken), address(this), takeSize, address(stakedToken));
         totalBorrowAmount = totalBorrowAmount.sub(takeSize);
+        PositionInfo storage positionInfo = positionInfoMap[position];
+        positionInfo.unsettledCash = positionInfo.unsettledCash.sub(amount);
+        positionInfo.totalSize = positionInfo.totalSize.sub(takeSize);
         shorterBone.poolTillOut(id, address(stableToken), bidder, amount);
     }
 
@@ -167,7 +170,11 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
         }
     }
 
-    function markLegacy() external onlyTradingHub {
+    function markLegacy(address[] calldata positions) external onlyTradingHub {
+        uint256 positionSize = positions.length;
+        for (uint256 i = 0; i < positionSize; i++) {
+            stableTokenAmountLeftover = stableTokenAmountLeftover.add(positionInfoMap[positions[i]].unsettledCash);
+        }
         isLegacyLeftover = true;
     }
 

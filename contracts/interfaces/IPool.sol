@@ -81,18 +81,18 @@ interface IPool {
     function auctionClosed(
         address position,
         uint256 phase1Used,
-        uint256 phase2Used,
-        uint256 legacyUsed
+        uint256 phase2Used
     ) external;
 
     function batchUpdateFundingFee(address[] calldata positions) external;
 
-    function markLegacy() external;
+    function markLegacy(address[] calldata positions) external;
 
     function stableTillOut(address bidder, uint256 amount) external;
 
     function takeLegacyStableToken(
         address bidder,
+        address position,
         uint256 amount,
         uint256 takeSize
     ) external payable;

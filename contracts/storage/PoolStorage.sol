@@ -35,6 +35,7 @@ contract PoolStorage is TitanCoreStorage {
     IPoolGuardian.PoolStatus internal stateFlag;
 
     bool public isLegacyLeftover;
+    uint256 public stableTokenAmountLeftover;
     ITradingHub public tradingHub;
     IPoolRewardModel public poolRewardModel;
     IPoolGuardian public poolGuardian;

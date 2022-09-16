@@ -114,6 +114,21 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         return (uint256(positionInfo.poolId), positionInfo.strToken, uint256(positionBlocks[position].closingBlock), positionInfo.positionState);
     }
 
+    function getPoolStats(uint256 poolId)
+        external
+        view
+        override
+        returns (
+            uint256 opens,
+            uint256 closings,
+            uint256 legacies,
+            uint256 ends
+        )
+    {
+        PoolStats storage poolStats = poolStatsMap[poolId];
+        return (poolStats.opens, poolStats.closings, poolStats.legacies, poolStats.ends);
+    }
+
     function getBatchPositionState(address[] calldata positions) external view override returns (uint256[] memory positionsState) {
         uint256 positionSize = positions.length;
         positionsState = new uint256[](positionSize);
@@ -163,7 +178,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
     }
 
     function isPoolWithdrawable(uint256 poolId) external view override returns (bool) {
-        return poolStatsMap[poolId].overdrawns == 0;
+        return poolStatsMap[poolId].legacies == 0;
     }
 
     function setBatchClosePositions(ITradingHub.BatchPositionInfo[] calldata batchPositionInfos) external override {
@@ -182,8 +197,8 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
                 require(positionInfo.positionState == OPEN_STATE, "TradingHub: Position is not open");
                 _updatePositionState(batchPositionInfos[i].positions[j], CLOSING_STATE);
             }
-            if (poolStatsMap[batchPositionInfos[i].poolId].opens > 0) break;
-            if (poolStatsMap[batchPositionInfos[i].poolId].closings > 0 || poolStatsMap[batchPositionInfos[i].poolId].overdrawns > 0) {
+            if (poolStatsMap[batchPositionInfos[i].poolId].opens > 0) continue;
+            if (poolStatsMap[batchPositionInfos[i].poolId].closings > 0 || poolStatsMap[batchPositionInfos[i].poolId].legacies > 0) {
                 poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.LIQUIDATING);
             } else {
                 poolGuardian.setStateFlag(batchPositionInfos[i].poolId, IPoolGuardian.PoolStatus.ENDED);
@@ -223,7 +238,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         } else if (positionIndex.positionState == CLOSING_STATE) {
             poolStats.closings--;
         } else if (positionIndex.positionState == OVERDRAWN_STATE) {
-            poolStats.overdrawns--;
+            poolStats.legacies--;
         }
 
         if (positionState == CLOSING_STATE) {
@@ -232,7 +247,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
             IAuctionHall(shorterBone.getAuctionHall()).initAuctionPosition(position, positionInfoMap[position].strToken, block.number);
             emit PositionClosing(position);
         } else if (positionState == OVERDRAWN_STATE) {
-            poolStats.overdrawns++;
+            poolStats.legacies++;
             positionBlocks[position].overdrawnBlock = block.number;
             emit PositionOverdrawn(position);
         } else if (positionState == CLOSED_STATE) {

@@ -34,16 +34,16 @@ contract VaultButlerImpl is ChainSchema, GaiaStorage, IVaultButler {
     function executeNaginata(address position, uint256 bidSize) external payable whenNotPaused onlyRuler {
         PositionInfo memory positionInfo = _getPositionInfo(position);
         LegacyInfo storage legacyInfo = legacyInfos[position];
-        require(bidSize > 0 && bidSize <= positionInfo.totalSize.sub(legacyInfo.bidSize), "VaultButler: Invalid bidSize");
+        require(bidSize > 0 && bidSize <= positionInfo.totalSize, "VaultButler: Invalid bidSize");
         uint256 bidPrice = _priceOfLegacy(positionInfo);
         uint256 usedCash = bidSize.mul(bidPrice).div(10**(positionInfo.stakedTokenDecimals.add(18).sub(positionInfo.stableTokenDecimals)));
-        IPool(positionInfo.strToken).takeLegacyStableToken{value: msg.value}(msg.sender, usedCash, bidSize);
+        IPool(positionInfo.strToken).takeLegacyStableToken{value: msg.value}(msg.sender, position, usedCash, bidSize);
 
         legacyInfo.bidSize = legacyInfo.bidSize.add(bidSize);
         legacyInfo.usedCash = legacyInfo.usedCash.add(usedCash);
         if (legacyInfo.bidSize == positionInfo.totalSize) {
             tradingHub.updatePositionState(position, 8);
-            IPool(positionInfo.strToken).auctionClosed(position, 0, 0, legacyInfo.usedCash);
+            IPool(positionInfo.strToken).auctionClosed(position, 0, 0);
         }
         emit ExecuteNaginata(position, msg.sender, bidSize, usedCash);
     }

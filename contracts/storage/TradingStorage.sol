@@ -35,7 +35,7 @@ contract TradingStorage is TitanCoreStorage {
 
     struct PoolStats {
         uint256 opens;
-        uint256 overdrawns;
+        uint256 legacies;
         uint256 closings;
         uint256 ends;
     }

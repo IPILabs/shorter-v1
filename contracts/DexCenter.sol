@@ -31,7 +31,6 @@ contract DexCenter is Affinity, IDexCenter {
 
     function sellShort(SellShortParams memory params) external returns (uint256 usdAmount) {
         address[] memory _path = params.path.getRouter();
-        _checkMiddleTokens(_path);
         ISRC20 tokenIn = ISRC20(_path[0]);
         ISRC20 tokenOut = ISRC20(_path[_path.length - 1]);
 
@@ -58,7 +57,6 @@ contract DexCenter is Affinity, IDexCenter {
 
     function buyCover(BuyCoverParams memory params) external returns (uint256 amountIn) {
         address[] memory _path = params.path.getRouter();
-        _checkMiddleTokens(_path);
         (ISRC20 tokenIn, ISRC20 tokenOut) = params.isSwapRouterV3 ? (ISRC20(_path[_path.length - 1]), ISRC20(_path[0])) : (ISRC20(_path[0]), ISRC20(_path[_path.length - 1]));
         uint256 tokenInBal = tokenIn.balanceOf(address(this));
         uint256 tokenOutBal = tokenOut.balanceOf(params.to);
@@ -130,14 +128,21 @@ contract DexCenter is Affinity, IDexCenter {
         address token0,
         address token1,
         address swapRouter,
+        bool isSell,
         bytes memory path
     ) external override {
-        if (isSwapRouterV3[swapRouter]) {
-            require(path.getTokenIn() == address(token0), "TradingHub: Invalid token0");
-            require(path.getTokenOut() == address(token1), "TradingHub: Invalid token1");
+        address[] memory _path = path.getRouter();
+        uint256 pathSize = _path.length;
+        require(pathSize >= 2 && pathSize < 5, "Dex: Invaild path");
+        if (isSell || isSwapRouterV3[swapRouter]) {
+            require(_path[0] == token0 && _path[pathSize.sub(1)] == token1, "Dex: Invaild path");
         } else {
-            require(path.getTokenIn() == address(token1), "TradingHub: Invalid token0");
-            require(path.getTokenOut() == address(token0), "TradingHub: Invalid token1");
+            require(_path[0] == token1 && _path[pathSize.sub(1)] == token0, "Dex: Invaild path");
+        }
+        if (pathSize > 2) {
+            for (uint256 i = 1; i < pathSize.sub(1); i++) {
+                require(isMiddleToken[_path[i]], "Dex: Invaild middle token");
+            }
         }
     }
 
@@ -207,14 +212,6 @@ contract DexCenter is Affinity, IDexCenter {
         bytes memory path
     ) internal returns (uint256 amountOut) {
         amountOut = IV3SwapRouter(swapRouter).exactInput(IV3SwapRouter.ExactInputParams({path: path, recipient: to, amountIn: amountIn, amountOutMinimum: amountOutMin}));
-    }
-
-    function _checkMiddleTokens(address[] memory _path) internal view {
-        if (_path.length > 2) {
-            for (uint256 i = 1; i < _path.length - 1; i++) {
-                require(isMiddleToken[_path[i]], "DexCenter: Invaild path");
-            }
-        }
     }
 
     function _getSqrtTWAP(address uniswapV3Pool) internal view returns (uint160 sqrtPriceX96) {

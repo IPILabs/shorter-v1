@@ -395,7 +395,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
     ) internal returns (uint256 amountIn) {
         AuctionPositonInfo storage auctionPositonInfo = auctionPositonInfoMap[_position];
         (, address swapRouter, ) = shorterBone.getTokenInfo(auctionPositonInfo.stakedToken);
-        IDexCenter(dexCenter).checkPath(auctionPositonInfo.stakedToken, auctionPositonInfo.stableToken, swapRouter, path);
+        IDexCenter(dexCenter).checkPath(auctionPositonInfo.stakedToken, auctionPositonInfo.stableToken, swapRouter, false, path);
         amountIn = IPool(auctionPositonInfo.strPool).dexCover(IDexCenter(dexCenter).isSwapRouterV3(swapRouter), shorterBone.TetherToken() == auctionPositonInfo.stableToken, dexCenter, swapRouter, _amountOut, _amountInMax, path);
     }
 

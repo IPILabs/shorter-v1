@@ -44,7 +44,7 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
             (withdrawAmount, burnAmount) = _tryWithdrawByAmount(amount);
         }
 
-        _withdrawStakedToken(msg.sender, withdrawAmount);
+        _withdrawStakedToken(msg.sender, withdrawAmount, burnAmount);
 
         poolRewardModel.harvestByStrToken(id, msg.sender, balanceOf[msg.sender].sub(burnAmount));
         _burn(msg.sender, burnAmount);
@@ -164,6 +164,7 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
     function _tryWithdrawByPercent(uint256 percent) internal returns (uint256 withdrawAmount, uint256 burnAmount) {
         uint256 stableTokenAmount;
         (withdrawAmount, burnAmount, stableTokenAmount) = getWithdrawableAmountByPercent(msg.sender, percent);
+        totalBorrowAmount = totalBorrowAmount.add(withdrawAmount).sub(burnAmount);
         stableTokenAmountLeftover = stableTokenAmountLeftover.sub(stableTokenAmount);
         shorterBone.poolTillOut(id, address(stableToken), msg.sender, stableTokenAmount);
     }
@@ -188,11 +189,15 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         wrapRouter.wrap(id, address(stakedToken), account, amount, _stakedToken);
     }
 
-    function _withdrawStakedToken(address account, uint256 withdrawAmount) internal {
+    function _withdrawStakedToken(
+        address account,
+        uint256 withdrawAmount,
+        uint256 burnAmount
+    ) internal {
         uint256 revenueAmount = stateFlag == IPoolGuardian.PoolStatus.RUNNING && uint256(poolUserUpdateBlock[msg.sender]).add(_blocksPerDay.mul(3)) > block.number ? withdrawAmount.div(1000) : 0;
         address treasury = shorterBone.getModule(AllyLibrary.TREASURY);
 
-        address _stakedToken = wrapRouter.unwrap(id, address(stakedToken), account, withdrawAmount);
+        address _stakedToken = wrapRouter.unwrap(id, address(stakedToken), account, withdrawAmount, burnAmount);
         shorterBone.poolTillOut(id, _stakedToken, treasury, revenueAmount);
         withdrawAmount = withdrawAmount.sub(revenueAmount);
 

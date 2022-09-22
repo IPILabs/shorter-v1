@@ -41,7 +41,7 @@ contract VaultButlerImpl is ChainSchema, GaiaStorage, IVaultButler {
 
         legacyInfo.bidSize = legacyInfo.bidSize.add(bidSize);
         legacyInfo.usedCash = legacyInfo.usedCash.add(usedCash);
-        if (legacyInfo.bidSize == positionInfo.totalSize) {
+        if (bidSize == positionInfo.totalSize) {
             tradingHub.updatePositionState(position, 8);
             IPool(positionInfo.strToken).auctionClosed(position, 0, 0);
         }

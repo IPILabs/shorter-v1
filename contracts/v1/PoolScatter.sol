@@ -45,7 +45,7 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
     ) external onlyTradingHub returns (uint256 amountOut) {
         _updateFundingFee(position);
 
-        wrapRouter.unwrap(id, address(stakedToken), address(this), amountIn);
+        wrapRouter.unwrap(id, address(stakedToken), address(this), amountIn, amountIn);
         totalBorrowAmount = totalBorrowAmount.add(amountIn);
         bytes memory data = delegateTo(dexCenter, abi.encodeWithSignature("sellShort((bool,uint256,uint256,address,address,bytes))", IDexCenter.SellShortParams({isSwapRouterV3: isSwapRouterV3, amountIn: amountIn, amountOutMin: amountOutMin, swapRouter: swapRouter, to: address(this), path: path})));
         amountOut = abi.decode(data, (uint256));
@@ -235,7 +235,8 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
 
     function estimatePositionState(uint256 currentPrice, address position) public view returns (uint256) {
         PositionInfo storage positionInfo = positionInfoMap[position];
-        uint256 availableAmount = positionInfo.unsettledCash.sub(getFundingFee(position));
+        uint256 fundingFee = getFundingFee(position);
+        uint256 availableAmount = positionInfo.unsettledCash > fundingFee ? positionInfo.unsettledCash.sub(fundingFee) : 0;
         uint256 overdrawnPrice = availableAmount.mul(10**(uint256(stakedTokenDecimals).add(18).sub(uint256(stableTokenDecimals)))).div(positionInfo.totalSize);
         if (currentPrice > overdrawnPrice) {
             return 4;
@@ -257,7 +258,7 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
         uint256 _totalFee = getFundingFee(position);
         shorterBone.poolRevenue(id, positionInfo.trader, address(stableToken), _totalFee, IShorterBone.IncomeType.FUNDING_FEE);
         positionInfo.totalFee = positionInfo.totalFee.add(_totalFee);
-        positionInfo.unsettledCash = positionInfo.unsettledCash.sub(_totalFee);
+        positionInfo.unsettledCash = positionInfo.unsettledCash > _totalFee ? positionInfo.unsettledCash.sub(_totalFee) : 0;
         positionInfo.lastestFeeBlock = block.number.to64();
         _updateTradingFee(positionInfo.trader, _totalFee);
     }

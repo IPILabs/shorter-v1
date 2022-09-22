@@ -29,6 +29,7 @@ interface IDexCenter {
         address token0,
         address token1,
         address swapRouter,
+        bool isSell,
         bytes memory path
     ) external;
 

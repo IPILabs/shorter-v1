@@ -41,10 +41,11 @@ contract InterestRateModelImpl is ChainSchema, InterestRateModelStorage, IIntere
         (, address strToken, ) = poolGuardian.getPoolInfo(_poolId);
         (, , , address wrappedToken, , , , , , , , ) = IPool(strToken).getMetaInfo();
 
-        totalStakedAmount_ = ISRC20(strToken).totalSupply();
+        uint256 _totalSupply = ISRC20(strToken).totalSupply();
         uint256 reserves = ISRC20(wrappedToken).balanceOf(strToken);
 
-        totalBorrowAmount_ = reserves > totalStakedAmount_ ? 0 : totalStakedAmount_.sub(reserves);
+        totalBorrowAmount_ = reserves > _totalSupply ? 0 : _totalSupply.sub(reserves);
+        totalStakedAmount_ = totalBorrowAmount_.add(wrapRouter.controvertibleAmounts(strToken));
     }
 
     function setMultiplier(uint256 _multiplier) external isManager {
@@ -61,6 +62,10 @@ contract InterestRateModelImpl is ChainSchema, InterestRateModelStorage, IIntere
 
     function setAnnualized(uint256 _annualized) external isManager {
         annualized = _annualized;
+    }
+
+    function setWrapRouter(address newWrapRouter) external isSavior {
+        wrapRouter = IWrapRouter(newWrapRouter);
     }
 
     function initialize(address _poolGuardian, address _shorterBone) external isSavior {

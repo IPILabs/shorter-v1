@@ -3,6 +3,7 @@ pragma solidity 0.6.12;
 
 import "../TitanCoreStorage.sol";
 import "../../interfaces/v1/IPoolGuardian.sol";
+import "../../interfaces/v1/IWrapRouter.sol";
 
 contract InterestRateModelStorage is TitanCoreStorage {
     bool internal _initialized;
@@ -17,4 +18,6 @@ contract InterestRateModelStorage is TitanCoreStorage {
     uint256 public annualized;
 
     IPoolGuardian public poolGuardian;
+
+    IWrapRouter public wrapRouter;
 }

@@ -44,7 +44,8 @@ interface IWrapRouter {
         uint256 poolId,
         address token,
         address account,
-        uint256 amount
+        uint256 amount,
+        uint256 burnAmount
     ) external returns (address);
 
     function transferTokenShare(
@@ -55,4 +56,6 @@ interface IWrapRouter {
     ) external;
 
     function inherits(address token) external view returns (address wrappedToken);
+
+    function controvertibleAmounts(address strPool) external view returns (uint256 amount);
 }

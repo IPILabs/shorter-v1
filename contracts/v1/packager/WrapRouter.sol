@@ -54,16 +54,17 @@ contract WrapRouter is Ownable, Pausable {
         uint256 poolId,
         address token,
         address account,
-        uint256 amount
+        uint256 amount,
+        uint256 burnAmount
     ) external whenNotPaused onlyStrPool(poolId) returns (address stakedToken) {
         if (msg.sender == account) {
             require(amount <= controvertibleAmounts[msg.sender], "WrapRouter unwrap: Insufficient liquidity");
         } else {
             uint256 stakedBal = transferableAmounts[account][msg.sender];
-            if (stakedBal < amount) {
+            if (stakedBal < burnAmount) {
                 return inherits[token];
             }
-            transferableAmounts[account][msg.sender] = stakedBal.sub(amount);
+            transferableAmounts[account][msg.sender] = stakedBal.sub(burnAmount);
         }
 
         controvertibleAmounts[msg.sender] = controvertibleAmounts[msg.sender].sub(amount);
@@ -147,7 +148,7 @@ contract WrapRouter is Ownable, Pausable {
         uint256 controvertibleAmount = controvertibleAmounts[msg.sender];
         uint256 _totalStakedTokenAmount = controvertibleAmount.add(totalBorrowAmount);
 
-        userShare = transferableAmount.mul(1e18).div(_totalStakedTokenAmount);
+        userShare = _totalStakedTokenAmount > 0 ? transferableAmount.mul(1e18).div(_totalStakedTokenAmount) : 0;
 
         if (transferableAmount > 0) {
             stakedToken = token;

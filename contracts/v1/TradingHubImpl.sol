@@ -53,8 +53,8 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         (, address swapRouter, ) = shorterBone.getTokenInfo(address(pool.stakedToken));
 
         require(dexCenter.entitledSwapRouters(swapRouter), "TradingHub sellShort: Invalid SwapRouter");
-        require(path.getTokenIn() == address(pool.stakedToken) && path.getTokenOut() == address(pool.stableToken), "TradingHub: Invalid path");
         require(pool.stateFlag == IPoolGuardian.PoolStatus.RUNNING && pool.endBlock > block.number, "TradingHub: Expired pool");
+        dexCenter.checkPath(address(pool.stakedToken), address(pool.stableToken), swapRouter, true, path);
 
         uint256 estimatePrice = priceOracle.getLatestMixinPrice(address(pool.stakedToken));
         require(estimatePrice.mul(amount).mul(pool.leverage.mul(100).sub(30)).div(pool.leverage.mul(100)) < amountOutMin.mul(10**(uint256(18).add(pool.stakedTokenDecimals).sub(pool.stableTokenDecimals))), "TradingHub: Slippage too large");
@@ -84,7 +84,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         PoolInfo memory pool = _getPoolInfo(poolId);
         (, address swapRouter, ) = shorterBone.getTokenInfo(address(pool.stakedToken));
         require(dexCenter.entitledSwapRouters(swapRouter), "TradingHub buyCover: Invalid SwapRouter");
-        dexCenter.checkPath(address(pool.stakedToken), address(pool.stableToken), swapRouter, path);
+        dexCenter.checkPath(address(pool.stakedToken), address(pool.stableToken), swapRouter, false, path);
 
         address position = _duplicatedOpenPosition(poolId, msg.sender);
         require(position != address(0), "TradingHub: Position not found");

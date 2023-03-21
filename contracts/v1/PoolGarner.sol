@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
 
+import "@openzeppelin/contracts/utils/Strings.sol";
 import "../libraries/AllyLibrary.sol";
 import "../interfaces/IWETH.sol";
 import "../criteria/ChainSchema.sol";
@@ -104,7 +105,7 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         id = _poolId;
         leverage = _leverage.to64();
         durationDays = _durationDays.to64();
-        _name = string(abi.encodePacked("Shorter Pool #", _poolId));
+        _name = string(abi.encodePacked("Shorter Pool #", Strings.toString(_poolId)));
         _symbol = string(abi.encodePacked("str", stakedToken.symbol()));
         _decimals = stakedTokenDecimals;
         tradingHub = ITradingHub(_tradingHubAddr);

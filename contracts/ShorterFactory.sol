@@ -31,7 +31,7 @@ contract ShorterFactory is Affinity, IShorterFactory {
         getPoolAddr[poolId] = strPool;
     }
 
-    function createOthers(bytes memory code, uint256 salt) external override isSavior returns (address _contractAddr) {
+    function createOthers(bytes memory code, uint256 salt) external override returns (address _contractAddr) {
         assembly {
             _contractAddr := create2(0, add(code, 0x20), mload(code), salt)
             if iszero(extcodesize(_contractAddr)) {

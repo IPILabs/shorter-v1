@@ -69,7 +69,7 @@ contract PriceOracle is IPriceOracle, Affinity {
         prices[tokenAddr] = price;
     }
 
-    function setSpareFeedContract(address tokenAddr, address feedContract) external onlyCommittee {
+    function setSpareFeedContract(address tokenAddr, address feedContract) external isKeeper {
         spareFeedContracts[tokenAddr] = feedContract;
     }
 

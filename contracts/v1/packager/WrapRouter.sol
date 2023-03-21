@@ -85,7 +85,10 @@ contract WrapRouter is Ownable, Pausable {
     }
 
     function setGrandeties(address _token, address[] calldata _grandeties) external onlyOwner {
-        grandeties[_token] = _grandeties;
+        uint256 grandetiesSize = _grandeties.length;
+        for (uint256 i = 0; i < grandetiesSize; i++) {
+            grandeties[_token].push(_grandeties[i]);
+        }
     }
 
     function setWrappedTokens(address[] calldata _tokens, address[] calldata _wrappedTokens) external onlyOwner {

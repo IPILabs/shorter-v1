@@ -24,4 +24,5 @@ interface IAuctionHall {
     event BidKatana(address indexed positionAddr, address indexed ruler, uint256 debtSize, uint256 usedCash, uint256 dexCoverReward);
     event AuctionFinished(address indexed positionAddr, uint256 indexed phase);
     event Retrieve(address indexed positionAddr, uint256 stableTokenSize, uint256 debtTokenSize, uint256 priorityFee);
+    event IncreasePriorityFee(address indexed positionAddr, address indexed bidder, uint256 bidIndex, uint256 priorityFee);
 }

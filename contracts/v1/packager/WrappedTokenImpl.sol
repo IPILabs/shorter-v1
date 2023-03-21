@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
 
+import {SafeERC20 as SafeToken} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "../../interfaces/ISRC20.sol";
 import "../../util/BoringMath.sol";
 import "../../util/Ownable.sol";
 import "../../util/Pausable.sol";
@@ -9,6 +11,7 @@ import "../../storage/WrappedTokenStorage.sol";
 
 contract WrappedTokenImpl is Ownable, Pausable, Whitelistable, WrappedTokenStorage {
     using BoringMath for uint256;
+    using SafeToken for ISRC20;
 
     /**
      * @dev Returns the name of the token.
@@ -84,6 +87,7 @@ contract WrappedTokenImpl is Ownable, Pausable, Whitelistable, WrappedTokenStora
 
     function _mint(address user, uint256 amount) internal {
         balanceOf[user] = balanceOf[user].add(amount);
+        emit Transfer(address(0), user, amount);
     }
 
     function _burn(address user, uint256 amount) internal {

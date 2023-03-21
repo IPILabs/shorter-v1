@@ -80,6 +80,20 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         emit BidTanto(position, msg.sender, bidSize, priorityFee);
     }
 
+    function increasePriorityFee(
+        address position,
+        uint256 bidIndex,
+        uint256 priorityFee
+    ) external whenNotPaused onlyRuler reentrantLock(1002) {
+        AuctionPositonInfo storage auctionPositonInfo = auctionPositonInfoMap[position];
+        require(block.number.sub(auctionPositonInfo.closingBlock) <= phase1MaxBlock, "AuctionHall: Tanto is over");
+        BidItem storage bidItem = allPhase1BidRecords[position][bidIndex];
+        require(bidItem.bidder == msg.sender, "AuctionHall: Invaild bidder");
+        shorterBone.tillIn(ipistrToken, msg.sender, AllyLibrary.AUCTION_HALL, priorityFee);
+        bidItem.priorityFee = bidItem.priorityFee.add(priorityFee);
+        emit IncreasePriorityFee(position, msg.sender, bidIndex, priorityFee);
+    }
+
     function bidKatana(address position, bytes memory path) external whenNotPaused onlyRuler reentrantLock(1001) {
         uint256 positionState = _getPositionState(position);
         AuctionPositonInfo storage auctionPositonInfo = auctionPositonInfoMap[position];

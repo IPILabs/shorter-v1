@@ -48,19 +48,19 @@ contract InterestRateModelImpl is ChainSchema, InterestRateModelStorage, IIntere
         totalStakedAmount_ = totalBorrowAmount_.add(wrapRouter.controvertibleAmounts(strToken));
     }
 
-    function setMultiplier(uint256 _multiplier) external isManager {
+    function setMultiplier(uint256 _multiplier) external isKeeper {
         multiplier = _multiplier;
     }
 
-    function setJumpMultiplier(uint256 _jumpMultiplier) external isManager {
+    function setJumpMultiplier(uint256 _jumpMultiplier) external isKeeper {
         jumpMultiplier = _jumpMultiplier;
     }
 
-    function setKink(uint256 _kink) external isManager {
+    function setKink(uint256 _kink) external isKeeper {
         kink = _kink;
     }
 
-    function setAnnualized(uint256 _annualized) external isManager {
+    function setAnnualized(uint256 _annualized) external isKeeper {
         annualized = _annualized;
     }
 

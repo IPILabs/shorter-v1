@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.6.12;
 
 import "@openzeppelin/contracts/utils/Strings.sol";

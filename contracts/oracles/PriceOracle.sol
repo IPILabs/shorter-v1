@@ -89,7 +89,7 @@ contract PriceOracle is IPriceOracle, Affinity {
         getRouter[tokenAddr] = Router({flag: flag, swapRouter: swapRouter, path: path, fees: fees});
     }
 
-    function setPriceOracleMode(address tokenAddr, PriceOracleMode mode) external onlyCommittee {
+    function setPriceOracleMode(address tokenAddr, PriceOracleMode mode) external isKeeper {
         priceOracleModeMap[tokenAddr] = mode;
     }
 

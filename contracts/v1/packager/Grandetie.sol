@@ -6,12 +6,19 @@ import "../../proxy/UpgradeabilityProxy.sol";
 import "../Rescuable.sol";
 
 contract Grandetie is UpgradeabilityProxy, Ownable, Rescuable {
+    event Upgraded(uint256 indexed version, address indexed implementation);
+
     constructor(
         address implementationContract,
         address newOwner,
         address _committee
     ) public UpgradeabilityProxy(implementationContract) Rescuable(_committee) {
         setOwner(newOwner);
+    }
+
+    function upgradeTo(uint256 newVersion, address newImplementation) external onlyOwner {
+        _upgradeTo(newVersion, newImplementation);
+        emit Upgraded(newVersion, newImplementation);
     }
 
     receive() external payable {}

@@ -17,41 +17,14 @@ contract FarmingRewardModelImpl is ChainSchema, FarmingRewardModelStorage, IFarm
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
     function harvestByPool(address user) external override returns (uint256 rewards) {
-        if (user != msg.sender) {
             require(msg.sender == address(farming), "FarmingReward: Caller is not Farming");
-        }
-
-        (uint256 _unLockRewards, uint256 _rewards) = pendingReward(user);
-        if (_unLockRewards > 0) {
-            ipistrToken.unlockBalance(user, _unLockRewards);
-        }
-
-        if (_rewards > 0) {
-            shorterBone.mintByAlly(AllyLibrary.FARMING_REWARD, user, _rewards);
-        }
-
-        rewards = _unLockRewards.add(_rewards);
-        userLastRewardBlock[user] = block.number;
+        rewards = _harvest(user);
     }
 
     function harvest(address user) external override returns (uint256 rewards) {
-        if (user != msg.sender) {
-            require(msg.sender == address(farming), "FarmingReward: Caller is not Farming");
-        }
-
-        (uint256 _unLockRewards, uint256 _rewards) = pendingReward(user);
-        if (_unLockRewards > 0) {
-            ipistrToken.unlockBalance(user, _unLockRewards);
-        }
-
-        if (_rewards > 0) {
-            shorterBone.mintByAlly(AllyLibrary.FARMING_REWARD, user, _rewards);
-        }
-
+        require(msg.sender == address(farming) || msg.sender == user, "FarmingReward: Caller is neither Farming nor User");
+        rewards = _harvest(user);
         farming.harvest(farming.getTokenId(), user);
-
-        rewards = _unLockRewards.add(_rewards);
-        userLastRewardBlock[user] = block.number;
     }
 
     function pendingReward(address _user) public view override returns (uint256 unLockRewards_, uint256 rewards_) {
@@ -118,8 +91,8 @@ contract FarmingRewardModelImpl is ChainSchema, FarmingRewardModelStorage, IFarm
     }
 
     function _getUnlockSpeed(uint256 userStakedAmount) internal view returns (uint256 speed) {
-        if (userStakedAmount.mul(2**10) < maxLpSupply) {
-            return userStakedAmount.mul(2**10).mul(maxUnlockSpeed).div(maxLpSupply).div(10);
+        if (userStakedAmount.mul(2 ** 10) < maxLpSupply) {
+            return userStakedAmount.mul(2 ** 10).mul(maxUnlockSpeed).div(maxLpSupply).div(10);
         }
 
         if (userStakedAmount >= maxLpSupply) {
@@ -127,8 +100,8 @@ contract FarmingRewardModelImpl is ChainSchema, FarmingRewardModelStorage, IFarm
         }
 
         for (uint256 i = 0; i < 10; i++) {
-            if (userStakedAmount.mul(2**(9 - i)) < maxLpSupply) {
-                uint256 _speed = (userStakedAmount.mul(2**(10 - i)).sub(maxLpSupply)).mul(maxUnlockSpeed).div(maxLpSupply).div(10);
+            if (userStakedAmount.mul(2 ** (9 - i)) < maxLpSupply) {
+                uint256 _speed = (userStakedAmount.mul(2 ** (10 - i)).sub(maxLpSupply)).mul(maxUnlockSpeed).div(maxLpSupply).div(10);
                 speed = speed.add(_speed);
                 break;
             }
@@ -145,11 +118,26 @@ contract FarmingRewardModelImpl is ChainSchema, FarmingRewardModelStorage, IFarm
         return ipistrToken.lockedBalanceOf(account);
     }
 
-    function initialize(
-        address _shorterBone,
-        address _farming,
-        address _ipistrToken
-    ) external isSavior {
+    function _harvest(address user) internal returns (uint256 rewards) {
+        (uint256 _unLockRewards, uint256 _rewards) = pendingReward(user);
+        if (_unLockRewards > 0) {
+            ipistrToken.unlockBalance(user, _unLockRewards);
+        }
+
+        if (_rewards > 0) {
+            shorterBone.mintByAlly(AllyLibrary.FARMING_REWARD, user, _rewards);
+        }
+
+        rewards = _unLockRewards.add(_rewards);
+        userLastRewardBlock[user] = block.number;
+    }
+
+    function setFarming(address newFarming) external isSavior {
+        require(newFarming != address(0), "PoolReward: newFarming is zero address");
+        farming = IFarming(newFarming);
+    }
+
+    function initialize(address _shorterBone, address _farming, address _ipistrToken) external isSavior {
         require(!_initialized, "FarmingReward: Already initialized");
         maxLpSupply = 1e24;
         maxUnlockSpeed = 1e17;

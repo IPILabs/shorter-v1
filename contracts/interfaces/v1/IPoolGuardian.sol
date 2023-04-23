@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
+pragma experimental ABIEncoderV2;
 
 import "../IShorterBone.sol";
+import "../IPool.sol";
 
 /// @notice Interfaces of PoolGuardian
 interface IPoolGuardian {
@@ -13,24 +15,10 @@ interface IPoolGuardian {
         ENDED
     }
 
-    function getPoolInfo(uint256 poolId)
-        external
-        view
-        returns (
-            address stakedToken,
-            address strToken,
-            PoolStatus stateFlag
-        );
+    function getPoolInfo(uint256 poolId) external view returns (address stakedToken, address strToken, PoolStatus stateFlag);
 
-    function addPool(
-        address stakedToken,
-        address stableToken,
-        address creator,
-        uint256 leverage,
-        uint256 durationDays,
-        uint256 poolId
-    ) external;
-
+    function addPool(IPool.CreatePoolParams calldata createPoolParams) external;
+    
     function listPool(uint256 poolId) external;
 
     function setStateFlag(uint256 poolId, PoolStatus status) external;

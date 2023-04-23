@@ -10,4 +10,6 @@ interface IPriceOracle {
     }
 
     function getLatestMixinPrice(address tokenAddr) external view returns (uint256 tokenPrice);
+
+    function quote(address baseToken, address quoteToken) external view returns (uint256 tokenPrice);
 }

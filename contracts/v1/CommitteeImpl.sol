@@ -15,13 +15,11 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
     using EnumerableSet for EnumerableSet.UintSet;
     using AllyLibrary for IShorterBone;
 
+    uint256 public constant MAX_FEE_PROTOCOL = 500000;
+
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
-    function initialize(
-        address _shorterBone,
-        address _ipistrToken,
-        address _stableToken
-    ) external isSavior {
+    function initialize(address _shorterBone, address _ipistrToken, address _stableToken) external isSavior {
         shorterBone = IShorterBone(_shorterBone);
         ipistrToken = IIpistrToken(_ipistrToken);
         stableToken = _stableToken;
@@ -63,13 +61,11 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
     }
 
     /// @notice Specified for the proposal of pool type
-    function createPoolProposal(
-        address _stakedTokenAddr,
-        uint256 _leverage,
-        uint256 _durationDays
-    ) external chainReady whenNotPaused {
+    function createPoolProposal(address _stakedTokenAddr, address _stableTokenAddr, uint256 _leverage, uint256 _durationDays, uint256 _maxCapacity, uint256 _feeProtocol) external chainReady whenNotPaused {
+        require(stableTokenWhitelist[_stableTokenAddr], "Committee: stableToken is not in the whitelist");
         address WrappedEtherAddr = IPoolGuardian(shorterBone.getPoolGuardian()).WrappedEtherAddr();
         require(_stakedTokenAddr != WrappedEtherAddr, "Committee: Invalid stakedToken");
+        require(_feeProtocol <= MAX_FEE_PROTOCOL, "Committee: Invalid feeProtocol");
         if (address(_stakedTokenAddr) == address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE)) {
             _stakedTokenAddr = WrappedEtherAddr;
         }
@@ -80,8 +76,7 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
         require(proposalGallery[proposalCount].startBlock == 0, "Committee: Existing proposal found");
         proposalIds.push(proposalCount);
         shorterBone.revenue(address(ipistrToken), msg.sender, proposalFee, IShorterBone.IncomeType.PROPOSAL_FEE);
-        IPoolGuardian(shorterBone.getPoolGuardian()).addPool(_stakedTokenAddr, stableToken, msg.sender, _leverage, _durationDays, proposalCount);
-
+        IPoolGuardian(shorterBone.getPoolGuardian()).addPool(IPool.CreatePoolParams({stakedToken: _stakedTokenAddr, stableToken: stableToken, creator: msg.sender, leverage: _leverage, durationDays: _durationDays, poolId: proposalCount, maxCapacity: _maxCapacity, feeProtocol: _feeProtocol}));
         proposalGallery[proposalCount] = Proposal({id: uint32(proposalCount), proposer: msg.sender, catagory: 1, startBlock: block.number.to64(), endBlock: block.number.add(blocksPerDay().mul(maxVotingDays)).to64(), forShares: 0, againstShares: 0, status: ProposalStatus.Active, displayable: true});
         poolMetersMap[proposalCount] = PoolMeters({tokenContract: _stakedTokenAddr, leverage: _leverage.to32(), durationDays: _durationDays.to32()});
 
@@ -89,14 +84,7 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
     }
 
     /// @notice Specified for the proposal of community type
-    function createCommunityProposal(
-        address[] memory targets,
-        uint256[] memory values,
-        string[] memory signatures,
-        bytes[] memory calldatas,
-        string memory description,
-        string memory title
-    ) external chainReady whenNotPaused {
+    function createCommunityProposal(address[] memory targets, uint256[] memory values, string[] memory signatures, bytes[] memory calldatas, string memory description, string memory title) external chainReady whenNotPaused {
         require(targets.length == values.length && targets.length == signatures.length && targets.length == calldatas.length, "Committee: Parameters mismatch");
         require(targets.length > 0 && targets.length <= 10, "Committee: Invalid actions");
         proposalCount = proposalCount.add(block.timestamp.add(1).sub(block.timestamp.div(30).mul(30)));
@@ -110,11 +98,7 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
         emit CommunityProposalCreated(proposalCount, msg.sender, description, title);
     }
 
-    function vote(
-        uint256 proposalId,
-        bool direction,
-        uint256 voteShare
-    ) external whenNotPaused {
+    function vote(uint256 proposalId, bool direction, uint256 voteShare) external whenNotPaused {
         require(_isRuler(msg.sender), "Committee: Caller is not a ruler");
 
         Proposal storage proposal = proposalGallery[proposalId];
@@ -151,7 +135,8 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
             proposal.againstShares = voteShare.add(proposal.againstShares);
             againstVoteProposals[msg.sender].add(proposalId);
             userVoteShare.againstShares = userVoteShare.againstShares.add(voteShare);
-            bool _finished = ((uint256(proposal.againstShares) >= totalIpistrStakedShare.mul(poolProposalThreshold).div(100)) && uint256(proposal.catagory) == uint256(1)) || ((uint256(proposal.againstShares) >= totalIpistrStakedShare.mul(committeeProposalThreshold).div(100)) && uint256(proposal.catagory) == uint256(2));
+            bool _finished = ((uint256(proposal.againstShares) >= totalIpistrStakedShare.mul(poolProposalThreshold).div(100)) && uint256(proposal.catagory) == uint256(1)) ||
+                ((uint256(proposal.againstShares) >= totalIpistrStakedShare.mul(committeeProposalThreshold).div(100)) && uint256(proposal.catagory) == uint256(2));
             if (_finished) {
                 _updateProposalStatus(proposalId, ProposalStatus.Failed);
                 _unlockRulerVotingShare(proposal.id);
@@ -194,12 +179,7 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
         lockedShare = rulerData.voteShareLocked;
     }
 
-    function _executeTransaction(
-        address target,
-        uint256 value,
-        string memory signature,
-        bytes memory data
-    ) internal returns (bytes memory) {
+    function _executeTransaction(address target, uint256 value, string memory signature, bytes memory data) internal returns (bytes memory) {
         bytes memory callData;
 
         if (bytes(signature).length == 0) {
@@ -262,18 +242,16 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
         }
     }
 
-    function getCommunityProposalInfo(uint256 proposalId)
-        external
-        view
-        returns (
-            address[] memory,
-            uint256[] memory,
-            string[] memory,
-            bytes[] memory
-        )
-    {
+    function getCommunityProposalInfo(uint256 proposalId) external view returns (address[] memory, uint256[] memory, string[] memory, bytes[] memory) {
         CommunityProposal storage communityProposal = communityProposalGallery[proposalId];
         return (communityProposal.targets, communityProposal.values, communityProposal.signatures, communityProposal.calldatas);
+    }
+
+    function setStableTokenWhitelist(address[] memory _stableTokenAddrs, bool flag) external isSavior {
+        uint256 updateStableTokenSize = _stableTokenAddrs.length;
+        for (uint256 i = 0; i < updateStableTokenSize; i++) {
+            stableTokenWhitelist[_stableTokenAddrs[i]] = flag;
+        }
     }
 
     /// @notice Set voting period
@@ -287,8 +265,7 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
     }
 
     /// @notice Tweak the proposal submission fee
-    function setProposalFee(uint256 _proposalFee) external {
-        require(msg.sender == address(this), "Committee: Caller is not Committee");
+    function setProposalFee(uint256 _proposalFee) external isSavior {
         proposalFee = _proposalFee;
     }
 

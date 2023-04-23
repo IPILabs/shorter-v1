@@ -6,11 +6,10 @@ import "../libraries/AllyLibrary.sol";
 import {SafeERC20 as SafeToken} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "../libraries/Path.sol";
 import "../interfaces/ISRC20.sol";
-import "../interfaces/v1/ITradingHub.sol";
 import "../interfaces/v1/IAuctionHall.sol";
-import "../interfaces/IDexCenter.sol";
-import "../interfaces/IPool.sol";
 import "../interfaces/IWETH.sol";
+import "../interfaces/v1/ITradingHub.sol";
+import "../interfaces/IPool.sol";
 import "../criteria/ChainSchema.sol";
 import "../storage/ThemisStorage.sol";
 import "../util/BoringMath.sol";
@@ -27,13 +26,6 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
-    modifier reentrantLock(uint256 code) {
-        require(userReentrantLocks[code][msg.sender] == 0, "TradingHub: Reentrant call");
-        userReentrantLocks[code][msg.sender] = 1;
-        _;
-        userReentrantLocks[code][msg.sender] = 0;
-    }
-
     modifier onlyRuler() {
         require(committee.isRuler(tx.origin), "AuctionHall: Caller is not a ruler");
         _;
@@ -44,11 +36,12 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         _;
     }
 
-    function bidTanto(
-        address position,
-        uint256 bidSize,
-        uint256 priorityFee
-    ) external payable whenNotPaused onlyRuler reentrantLock(1000) {
+    modifier ensure(uint256 deadline) {
+        require(deadline >= block.timestamp, "TradingHub: EXPIRED");
+        _;
+    }
+
+    function bidTanto(address position, uint256 bidSize, uint256 priorityFee) external payable whenNotPaused onlyRuler {
         require(userBidTimes[tx.origin][position]++ < 20, "AuctionHall: User too many bids");
         require(userLastBidBlock[msg.sender][position] != block.number, "AuctionHall: already bid");
         require(allPhase1BidRecords[position].length < 512, "AuctionHall: Too many bids");
@@ -80,11 +73,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         emit BidTanto(position, msg.sender, bidSize, priorityFee);
     }
 
-    function increasePriorityFee(
-        address position,
-        uint256 bidIndex,
-        uint256 priorityFee
-    ) external whenNotPaused onlyRuler reentrantLock(1002) {
+    function increasePriorityFee(address position, uint256 bidIndex, uint256 priorityFee) external whenNotPaused onlyRuler {
         AuctionPositonInfo storage auctionPositonInfo = auctionPositonInfoMap[position];
         require(block.number.sub(auctionPositonInfo.closingBlock) <= phase1MaxBlock, "AuctionHall: Tanto is over");
         BidItem storage bidItem = allPhase1BidRecords[position][bidIndex];
@@ -94,7 +83,8 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         emit IncreasePriorityFee(position, msg.sender, bidIndex, priorityFee);
     }
 
-    function bidKatana(address position, bytes memory path) external whenNotPaused onlyRuler reentrantLock(1001) {
+    function bidKatana(address position, address _dexCenter, bytes calldata data, uint256 deadline) external whenNotPaused ensure(deadline) onlyRuler {
+        require(tradingHub.allowedDexCenter(_dexCenter), "AuctionHall: DexCenter is not allowed");
         uint256 positionState = _getPositionState(position);
         AuctionPositonInfo storage auctionPositonInfo = auctionPositonInfoMap[position];
         require(block.number.sub(auctionPositonInfo.closingBlock) > phase1MaxBlock && block.number.sub(auctionPositonInfo.closingBlock) <= auctionMaxBlock, "AuctionHall: Katana is over");
@@ -103,17 +93,13 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         require(!phase1Info.flag, "AuctionHall: Position closed");
 
         Phase2Info storage phase2Info = phase2Infos[position];
-        uint256 decimalDiff = 10**(auctionPositonInfo.stakedTokenDecimals.add(18).sub(auctionPositonInfo.stableTokenDecimals));
+        uint256 decimalDiff = 10 ** (auctionPositonInfo.stakedTokenDecimals.add(18).sub(auctionPositonInfo.stableTokenDecimals));
         uint256 phase1UsedUnsettledCash = phase1Info.bidSize.mul(phase1Info.liquidationPrice).div(decimalDiff);
         phase2Info.debtSize = auctionPositonInfo.totalSize.sub(phase1Info.bidSize);
         uint256 estimatePhase2UseCash = auctionPositonInfo.unsettledCash.sub(phase1UsedUnsettledCash);
-        phase2Info.usedCash = _dexCover(position, phase2Info.debtSize, estimatePhase2UseCash, path);
+        (phase2Info.usedCash, phase2Info.dexCoverReward) = _dexCover(_dexCenter, position, phase2Info.debtSize, estimatePhase2UseCash, data);
         phase2Info.rulerAddr = msg.sender;
         phase2Info.flag = true;
-        phase2Info.dexCoverReward = phase2Info.usedCash.div(100);
-        if (phase2Info.dexCoverReward.add(phase2Info.usedCash) > estimatePhase2UseCash) {
-            phase2Info.dexCoverReward = estimatePhase2UseCash.sub(phase2Info.usedCash);
-        }
 
         _closePosition(position);
         emit AuctionFinished(position, 2);
@@ -156,22 +142,9 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         }
     }
 
-    function initialize(
-        address _shorterBone,
-        address _dexCenter,
-        address _ipistrToken,
-        address _poolGuardian,
-        address _tradingHub,
-        address _priceOracle,
-        address _committee,
-        address _wrappedEtherAddr,
-        uint256 _phase1MaxBlock,
-        uint256 _auctionMaxBlock
-    ) external isSavior {
-        require(_dexCenter != address(0), "AuctionHall: DexCenter is zero address");
+    function initialize(address _shorterBone, address _ipistrToken, address _poolGuardian, address _tradingHub, address _priceOracle, address _committee, address _wrappedEtherAddr, uint256 _phase1MaxBlock, uint256 _auctionMaxBlock) external isSavior {
         require(_ipistrToken != address(0), "AuctionHall: IpistrToken is zero address");
         shorterBone = IShorterBone(_shorterBone);
-        dexCenter = _dexCenter;
         ipistrToken = _ipistrToken;
         poolGuardian = IPoolGuardian(_poolGuardian);
         tradingHub = ITradingHub(_tradingHub);
@@ -182,17 +155,18 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         auctionMaxBlock = _auctionMaxBlock;
     }
 
-    function initAuctionPosition(
-        address position,
-        address strPool,
-        uint256 closingBlock
-    ) external override onlyTradingHub {
+    function initAuctionPosition(address position, address strPool, uint256 closingBlock) external override onlyTradingHub {
         (address stakedToken, address stableToken, uint256 stakedTokenDecimals, uint256 stableTokenDecimals) = _getMetaInfo(strPool);
         (uint256 totalSize, uint256 unsettledCash) = _getPositionAssetInfo(strPool, position);
         auctionPositonInfoMap[position] = AuctionPositonInfo({strPool: strPool, stakedToken: stakedToken, stableToken: stableToken, closingBlock: closingBlock, totalSize: totalSize, unsettledCash: unsettledCash, stakedTokenDecimals: stakedTokenDecimals, stableTokenDecimals: stableTokenDecimals});
     }
 
-    function retrieve(address position, uint256[] calldata bidRanks) external whenNotPaused reentrantLock(1002) {
+    function setPriceOracle(address newPriceOracle) external isSavior {
+        require(newPriceOracle != address(0), "AuctionHallImpl: NewPriceOracle is zero address");
+        priceOracle = IPriceOracle(newPriceOracle);
+    }
+
+    function retrieve(address position, uint256[] calldata bidRanks) external whenNotPaused {
         (uint256 stableTokenSize, uint256 debtTokenSize, uint256 priorityFee) = queryResidues(position, bidRanks, msg.sender);
         require(stableTokenSize.add(debtTokenSize).add(priorityFee) > 0, "AuctionHall: No asset to retrieve for now");
         _updateRulerAsset(position, msg.sender);
@@ -262,19 +236,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         return currentPrice;
     }
 
-    function queryResidues(
-        address position,
-        uint256[] calldata bidRanks,
-        address ruler
-    )
-        public
-        view
-        returns (
-            uint256 stableTokenSize,
-            uint256 debtTokenSize,
-            uint256 priorityFee
-        )
-    {
+    function queryResidues(address position, uint256[] calldata bidRanks, address ruler) public view returns (uint256 stableTokenSize, uint256 debtTokenSize, uint256 priorityFee) {
         uint256 positionState = _getPositionState(position);
         if (positionState == CLOSING_STATE) {
             return (0, 0, 0);
@@ -306,22 +268,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         }
     }
 
-    function _getPhase1Residues(
-        address _ruler,
-        address _position,
-        uint256 _remainingDebtSize,
-        uint256 _stableTokenSize,
-        uint256[] calldata _bidRanks,
-        bool _phase2Flag
-    )
-        internal
-        view
-        returns (
-            uint256 stableTokenSize,
-            uint256 debtTokenSize,
-            uint256 priorityFee
-        )
-    {
+    function _getPhase1Residues(address _ruler, address _position, uint256 _remainingDebtSize, uint256 _stableTokenSize, uint256[] calldata _bidRanks, bool _phase2Flag) internal view returns (uint256 stableTokenSize, uint256 debtTokenSize, uint256 priorityFee) {
         BidItem[] storage bidItems = allPhase1BidRecords[_position];
         require(_verifyPhase1BidRanks(_position, _bidRanks), "AuctionHall: Invalid bidRanks params");
         Phase1Info storage phase1Info = phase1Infos[_position];
@@ -345,7 +292,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
                     priorityFee = priorityFee.add(bidItems[_bidRanks[i]].priorityFee);
                 } else {
                     debtTokenSize = debtTokenSize.add(bidItems[_bidRanks[i]].bidSize).sub(wonSize);
-                    uint256 stableTokenIncreased = wonSize.mul(phase1Info.liquidationPrice).div(10**(auctionPositonInfo.stakedTokenDecimals.add(18).sub(auctionPositonInfo.stableTokenDecimals)));
+                    uint256 stableTokenIncreased = wonSize.mul(phase1Info.liquidationPrice).div(10 ** (auctionPositonInfo.stakedTokenDecimals.add(18).sub(auctionPositonInfo.stableTokenDecimals)));
                     stableTokenSize = stableTokenSize.add(stableTokenIncreased);
                 }
             }
@@ -360,16 +307,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         positionsState = tradingHub.getBatchPositionState(_positions);
     }
 
-    function _getMetaInfo(address _strPool)
-        internal
-        view
-        returns (
-            address stakedToken,
-            address stableToken,
-            uint256 stakedTokenDecimals,
-            uint256 stableTokenDecimals
-        )
-    {
+    function _getMetaInfo(address _strPool) internal view returns (address stakedToken, address stableToken, uint256 stakedTokenDecimals, uint256 stableTokenDecimals) {
         (, stakedToken, stableToken, , , , , , , stakedTokenDecimals, stableTokenDecimals, ) = IPool(_strPool).getMetaInfo();
     }
 
@@ -383,7 +321,7 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
         tradingHub.updatePositionState(position, CLOSED_STATE);
         Phase1Info storage phase1Info = phase1Infos[position];
         uint256 phase1WonSize = phase1Info.bidSize > auctionPositonInfo.totalSize ? auctionPositonInfo.totalSize : phase1Info.bidSize;
-        uint256 phase1UsedUnsettledCash = phase1WonSize.mul(phase1Info.liquidationPrice).div(10**(auctionPositonInfo.stakedTokenDecimals.add(18).sub(auctionPositonInfo.stableTokenDecimals)));
+        uint256 phase1UsedUnsettledCash = phase1WonSize.mul(phase1Info.liquidationPrice).div(10 ** (auctionPositonInfo.stakedTokenDecimals.add(18).sub(auctionPositonInfo.stableTokenDecimals)));
         IPool(auctionPositonInfo.strPool).auctionClosed(position, phase1UsedUnsettledCash, phase2Infos[position].usedCash.add(phase2Infos[position].dexCoverReward));
     }
 
@@ -397,20 +335,18 @@ contract AuctionHallImpl is ChainSchema, ThemisStorage, IAuctionHall {
 
     function _estimatePositionPrice(address _position) internal view returns (uint256 currentPrice, uint256 overdrawnPrice) {
         AuctionPositonInfo storage auctionPositonInfo = auctionPositonInfoMap[_position];
-        currentPrice = priceOracle.getLatestMixinPrice(auctionPositonInfo.stakedToken);
-        overdrawnPrice = auctionPositonInfo.unsettledCash.mul(10**(auctionPositonInfo.stakedTokenDecimals.add(18).sub(auctionPositonInfo.stableTokenDecimals))).div(auctionPositonInfo.totalSize);
+        currentPrice = priceOracle.quote(auctionPositonInfo.stakedToken, auctionPositonInfo.stableToken);
+        overdrawnPrice = auctionPositonInfo.unsettledCash.mul(10 ** (auctionPositonInfo.stakedTokenDecimals.add(18).sub(auctionPositonInfo.stableTokenDecimals))).div(auctionPositonInfo.totalSize);
     }
 
-    function _dexCover(
-        address _position,
-        uint256 _amountOut,
-        uint256 _amountInMax,
-        bytes memory path
-    ) internal returns (uint256 amountIn) {
+    function _dexCover(address _dexCenter, address _position, uint256 _amountOut, uint256 _amountInMax, bytes calldata data) internal returns (uint256 amountIn, uint256 dexCoverReward) {
         AuctionPositonInfo storage auctionPositonInfo = auctionPositonInfoMap[_position];
-        (, address swapRouter, ) = shorterBone.getTokenInfo(auctionPositonInfo.stakedToken);
-        IDexCenter(dexCenter).checkPath(auctionPositonInfo.stakedToken, auctionPositonInfo.stableToken, swapRouter, false, path);
-        amountIn = IPool(auctionPositonInfo.strPool).dexCover(IDexCenter(dexCenter).isSwapRouterV3(swapRouter), shorterBone.TetherToken() == auctionPositonInfo.stableToken, dexCenter, swapRouter, _amountOut, _amountInMax, path);
+        uint256 currentPrice = priceOracle.quote(auctionPositonInfo.stakedToken, auctionPositonInfo.stableToken);
+
+        uint256 estimateAmountInMax = currentPrice.mul(101).div(100).mul(_amountOut).div(10 ** (auctionPositonInfo.stakedTokenDecimals.add(18).sub(auctionPositonInfo.stableTokenDecimals)));
+        uint256 amountInMax = estimateAmountInMax > _amountInMax ? _amountInMax : estimateAmountInMax;
+
+        (amountIn, dexCoverReward) = IPool(auctionPositonInfo.strPool).dexCover(_dexCenter, _amountOut, amountInMax, data);
     }
 
     function _updatePhase1State(address[] calldata closedPositions) internal {

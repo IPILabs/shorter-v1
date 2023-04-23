@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.6.12;
 
-import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "../../libraries/AllyLibrary.sol";
 import "../../interfaces/IShorterBone.sol";
 import "../../interfaces/governance/ICommittee.sol";
@@ -22,13 +21,10 @@ contract GovRewardModelImpl is ChainSchema, GovRewardModelStorage, IGovRewardMod
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
     function harvest(address user) external override returns (uint256 rewards) {
-        bool isAccount = user == msg.sender;
-        if (!isAccount) {
             require(msg.sender == farming || msg.sender == committee, "GovReward: Caller is neither Farming nor Committee");
-        }
 
         rewards = pendingReward(user);
-        if ((isAccount || msg.sender == committee) && rewards > 0) {
+        if (msg.sender == committee && rewards > 0) {
             shorterBone.mintByAlly(AllyLibrary.GOV_REWARD, user, rewards);
         }
 
@@ -48,12 +44,12 @@ contract GovRewardModelImpl is ChainSchema, GovRewardModelStorage, IGovRewardMod
         (_stakedAmount, ) = ICommittee(committee).getUserShares(user);
     }
 
-    function initialize(
-        address _shorterBone,
-        address _ipistrToken,
-        address _farming,
-        address _committee
-    ) external isSavior {
+    function setFarming(address newFarming) external isSavior {
+        require(newFarming != address(0), "PoolReward: newFarming is zero address");
+        farming = newFarming;
+    }
+
+    function initialize(address _shorterBone, address _ipistrToken, address _farming, address _committee) external isSavior {
         require(!_initialized, "GovReward: Already initialized");
         shorterBone = IShorterBone(_shorterBone);
         ipistrToken = _ipistrToken;

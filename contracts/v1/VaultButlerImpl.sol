@@ -33,10 +33,11 @@ contract VaultButlerImpl is ChainSchema, GaiaStorage, IVaultButler {
 
     function executeNaginata(address position, uint256 bidSize) external payable whenNotPaused onlyRuler {
         PositionInfo memory positionInfo = _getPositionInfo(position);
+        require(positionInfo.positionState == OVERDRAWN_STATE, "VaultButler: Position is not overdrawn");
         LegacyInfo storage legacyInfo = legacyInfos[position];
         require(bidSize > 0 && bidSize <= positionInfo.totalSize, "VaultButler: Invalid bidSize");
         uint256 bidPrice = _priceOfLegacy(positionInfo);
-        uint256 usedCash = bidSize.mul(bidPrice).div(10**(positionInfo.stakedTokenDecimals.add(18).sub(positionInfo.stableTokenDecimals)));
+        uint256 usedCash = bidSize.mul(bidPrice).div(10 ** (positionInfo.stakedTokenDecimals.add(18).sub(positionInfo.stableTokenDecimals)));
         IPool(positionInfo.strToken).takeLegacyStableToken{value: msg.value}(msg.sender, position, usedCash, bidSize);
 
         legacyInfo.bidSize = legacyInfo.bidSize.add(bidSize);
@@ -50,28 +51,28 @@ contract VaultButlerImpl is ChainSchema, GaiaStorage, IVaultButler {
 
     function _priceOfLegacy(PositionInfo memory positionInfo) internal view returns (uint256) {
         require(positionInfo.positionState == OVERDRAWN_STATE, "VaultButler: Not a legacy position");
-        uint256 currentPrice = priceOracle.getLatestMixinPrice(positionInfo.stakedToken);
+        uint256 currentPrice = priceOracle.quote(positionInfo.stakedToken, positionInfo.stableToken);
         currentPrice = currentPrice.mul(102).div(100);
 
-        uint256 overdrawnPrice = positionInfo.unsettledCash.mul(10**(positionInfo.stakedTokenDecimals.add(18).sub(positionInfo.stableTokenDecimals))).div(positionInfo.totalSize);
+        uint256 overdrawnPrice = positionInfo.unsettledCash.mul(10 ** (positionInfo.stakedTokenDecimals.add(18).sub(positionInfo.stableTokenDecimals))).div(positionInfo.totalSize);
         if (currentPrice > overdrawnPrice) {
             return overdrawnPrice;
         }
         return currentPrice;
     }
 
-    function initialize(
-        address _shorterBone,
-        address _tradingHub,
-        address _priceOracle,
-        address _committee
-    ) external isSavior {
-        require(!_initialized, "VaultButler: Already initialized");
+    function initialize(address _shorterBone, address _tradingHub, address _priceOracle, address _committee) external isSavior {
+        require(_priceOracle != address(0), "VaultButler: PriceOracle is zero address");
         shorterBone = IShorterBone(_shorterBone);
         tradingHub = ITradingHub(_tradingHub);
         priceOracle = IPriceOracle(_priceOracle);
         committee = ICommittee(_committee);
         _initialized = true;
+    }
+
+    function setPriceOracle(address newPriceOracle) external isSavior {
+        require(newPriceOracle != address(0), "VaultButler: PriceOracle is zero address");
+        priceOracle = IPriceOracle(newPriceOracle);
     }
 
     function _getPositionInfo(address position) internal view returns (PositionInfo memory positionInfo) {

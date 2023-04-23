@@ -43,6 +43,8 @@ interface ITradingHub {
 
     function setBatchClosePositions(BatchPositionInfo[] calldata batchPositionInfos) external;
 
+    function allowedDexCenter(address dexcenter) external view returns (bool);
+
     event PositionOpened(uint256 indexed poolId, address indexed trader, address indexed positionAddr, uint256 orderSize);
     event PositionIncreased(uint256 indexed poolId, address indexed trader, address indexed positionAddr, uint256 orderSize);
     event PositionDecreased(uint256 indexed poolId, address indexed trader, address indexed positionAddr, uint256 orderSize);

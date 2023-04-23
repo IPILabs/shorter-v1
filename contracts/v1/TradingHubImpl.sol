@@ -19,19 +19,14 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
     using Path for bytes;
     using AllyLibrary for IShorterBone;
 
+    mapping(address => bool) public override allowedDexCenter;
+
     uint256 internal constant OPEN_STATE = 1;
     uint256 internal constant CLOSING_STATE = 2;
     uint256 internal constant OVERDRAWN_STATE = 4;
     uint256 internal constant CLOSED_STATE = 8;
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
-
-    modifier reentrantLock(uint256 code) {
-        require(userReentrantLocks[code][msg.sender] == 0, "TradingHub: Reentrant call");
-        userReentrantLocks[code][msg.sender] = 1;
-        _;
-        userReentrantLocks[code][msg.sender] = 0;
-    }
 
     modifier onlySwapRouter(address _swapRouter) {
         require(dexCenter.entitledSwapRouters(_swapRouter), "TradingHub: Invalid SwapRouter");
@@ -43,21 +38,27 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         _;
     }
 
-    function sellShort(
-        uint256 poolId,
-        uint256 amount,
-        uint256 amountOutMin,
-        bytes memory path
-    ) external whenNotPaused reentrantLock(0) {
+    modifier onlyAllowedDexCenter(address _dexcenter) {
+        require(allowedDexCenter[_dexcenter], "TradingHub: DexCenter is not allowed");
+        _;
+    }
+
+    modifier ensure(uint256 deadline) {
+        require(deadline >= block.timestamp, "TradingHub: EXPIRED");
+        _;
+    }
+
+    function sellShort(uint256 poolId, address dexcenter, uint256 amountIn, uint256 amountOutMin, bytes calldata data, uint256 deadline) external whenNotPaused ensure(deadline) onlyAllowedDexCenter(dexcenter) {
         PoolInfo memory pool = _getPoolInfo(poolId);
-        (, address swapRouter, ) = shorterBone.getTokenInfo(address(pool.stakedToken));
-
-        require(dexCenter.entitledSwapRouters(swapRouter), "TradingHub sellShort: Invalid SwapRouter");
         require(pool.stateFlag == IPoolGuardian.PoolStatus.RUNNING && pool.endBlock > block.number, "TradingHub: Expired pool");
-        dexCenter.checkPath(address(pool.stakedToken), address(pool.stableToken), swapRouter, true, path);
 
-        uint256 estimatePrice = priceOracle.getLatestMixinPrice(address(pool.stakedToken));
-        require(estimatePrice.mul(amount).mul(pool.leverage.mul(100).sub(30)).div(pool.leverage.mul(100)) < amountOutMin.mul(10**(uint256(18).add(pool.stakedTokenDecimals).sub(pool.stableTokenDecimals))), "TradingHub: Slippage too large");
+        {
+            uint256 estimatePrice = priceOracle.quote(address(pool.stakedToken), address(pool.stableToken));
+            uint256 estimatePriceMin = estimatePrice.mul(pool.leverage.mul(100)).div(pool.leverage.mul(100).add(20));
+            uint256 estimateAmountOutMin = estimatePriceMin.mul(amountIn).div(10 ** uint256(18).add(pool.stakedTokenDecimals).sub(pool.stableTokenDecimals));
+            require(amountOutMin >= estimateAmountOutMin, "TradingHub: Slippage too large");
+        }
+
         address position = _duplicatedOpenPosition(poolId, msg.sender);
         if (position == address(0)) {
             position = address(uint160(uint256(keccak256(abi.encode(poolId, msg.sender, block.number)))));
@@ -67,64 +68,43 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
             positionInfoMap[position] = PositionIndex({poolId: poolId.to64(), strToken: pool.strToken, positionState: OPEN_STATE});
             poolStatsMap[poolId].opens++;
             positionBlocks[position].openBlock = block.number;
-            emit PositionOpened(poolId, msg.sender, position, amount);
+            emit PositionOpened(poolId, msg.sender, position, amountIn);
         } else {
-            emit PositionIncreased(poolId, msg.sender, position, amount);
+            emit PositionIncreased(poolId, msg.sender, position, amountIn);
         }
-        IPool(pool.strToken).borrow(dexCenter.isSwapRouterV3(swapRouter), address(dexCenter), swapRouter, position, msg.sender, amount, amountOutMin, path);
+        require(positionBlocks[position].lastSellBlock < block.number, "TradingHub: Illegit sellShort");
+        IPool(pool.strToken).borrow(msg.sender, position, dexcenter, amountIn, amountOutMin, data);
         positionBlocks[position].lastSellBlock = block.number;
     }
 
-    function buyCover(
-        uint256 poolId,
-        uint256 amount,
-        uint256 amountInMax,
-        bytes memory path
-    ) external whenNotPaused reentrantLock(1) {
+    function buyCover(uint256 poolId, address _dexcenter, uint256 amountOut, uint256 amountInMax, bytes calldata data, uint256 deadline) external whenNotPaused ensure(deadline) onlyAllowedDexCenter(_dexcenter) {
         PoolInfo memory pool = _getPoolInfo(poolId);
-        (, address swapRouter, ) = shorterBone.getTokenInfo(address(pool.stakedToken));
-        require(dexCenter.entitledSwapRouters(swapRouter), "TradingHub buyCover: Invalid SwapRouter");
-        dexCenter.checkPath(address(pool.stakedToken), address(pool.stableToken), swapRouter, false, path);
+        require(pool.stateFlag == IPoolGuardian.PoolStatus.RUNNING && pool.endBlock > block.number, "TradingHub: Expired pool");
 
         address position = _duplicatedOpenPosition(poolId, msg.sender);
         require(position != address(0), "TradingHub: Position not found");
         require(positionBlocks[position].lastSellBlock < block.number, "TradingHub: Illegit buyCover");
 
-        bool isClosed = IPool(pool.strToken).repay(dexCenter.isSwapRouterV3(swapRouter), shorterBone.TetherToken() == address(pool.stableToken), address(dexCenter), swapRouter, position, msg.sender, amount, amountInMax, path);
-
+        bool isClosed = IPool(pool.strToken).repay(msg.sender, position, _dexcenter, amountOut, amountInMax, data);
         if (isClosed) {
             _updatePositionState(position, CLOSED_STATE);
         }
 
-        emit PositionDecreased(poolId, msg.sender, position, amount);
+        emit PositionDecreased(poolId, msg.sender, position, amountOut);
     }
 
-    function getPositionState(address position)
-        external
-        view
-        override
-        returns (
-            uint256,
-            address,
-            uint256,
-            uint256
-        )
-    {
+    function increaseMargin(address position, uint256 amount) external whenNotPaused {
+        PositionIndex storage positionInfo = positionInfoMap[position];
+        require(positionInfo.positionState == OPEN_STATE, "TradingHub: Position is not open");
+        IPool(positionInfo.strToken).increaseMargin(position, msg.sender, amount);
+    }
+
+    function getPositionState(address position) external view override returns (uint256, address, uint256, uint256) {
         PositionIndex storage positionInfo = positionInfoMap[position];
         return (uint256(positionInfo.poolId), positionInfo.strToken, uint256(positionBlocks[position].closingBlock), positionInfo.positionState);
     }
 
-    function getPoolStats(uint256 poolId)
-        external
-        view
-        override
-        returns (
-            uint256 opens,
-            uint256 closings,
-            uint256 legacies,
-            uint256 ends
-        )
-    {
+    function getPoolStats(uint256 poolId) external view override returns (uint256 opens, uint256 closings, uint256 legacies, uint256 ends) {
         PoolStats storage poolStats = poolStatsMap[poolId];
         return (poolStats.opens, poolStats.closings, poolStats.legacies, poolStats.ends);
     }
@@ -144,12 +124,7 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         }
     }
 
-    function initialize(
-        address _shorterBone,
-        address _poolGuardian,
-        address _dexCenter,
-        address _priceOracle
-    ) external isSavior {
+    function initialize(address _shorterBone, address _poolGuardian, address _dexCenter, address _priceOracle) external isSavior {
         require(!_initialized, "TradingHub: Already initialized");
         shorterBone = IShorterBone(_shorterBone);
         poolGuardian = IPoolGuardian(_poolGuardian);
@@ -315,13 +290,20 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         return resPositions;
     }
 
-    function setDexCenter(address newDexCenter) external onlyCommittee {
-        require(newDexCenter != address(0), "TradingHub: NewDexCenter is zero address");
-        dexCenter = IDexCenter(newDexCenter);
-    }
-
-    function setPriceOracle(address newPriceOracle) external onlyCommittee {
+    function setPriceOracle(address newPriceOracle) external isSavior {
         require(newPriceOracle != address(0), "TradingHub: NewPriceOracle is zero address");
         priceOracle = IPriceOracle(newPriceOracle);
+    }
+
+    function addAllowedDexCenter(address[] calldata _dexcenters) external isSavior {
+        for (uint256 i = 0; i < _dexcenters.length; i++) {
+            allowedDexCenter[_dexcenters[i]] = true;
+        }
+    }
+
+    function removeAllowedDexCenter(address[] calldata _dexcenters) external isSavior {
+        for (uint256 i = 0; i < _dexcenters.length; i++) {
+            allowedDexCenter[_dexcenters[i]] = false;
+        }
     }
 }

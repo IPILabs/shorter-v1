@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.6.12;
+pragma experimental ABIEncoderV2;
 
 import "../libraries/AllyLibrary.sol";
 import "../interfaces/IPool.sol";
+import "../interfaces/v1/IPoolGuardian.sol";
 import "../interfaces/IShorterFactory.sol";
 import "../interfaces/v1/IWrapRouter.sol";
 import "../criteria/ChainSchema.sol";
@@ -22,12 +24,7 @@ contract PoolGuardianImpl is ChainSchema, TheiaStorage, IPoolGuardian {
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
-    function initialize(
-        address _shorterBone,
-        address _WrappedEtherAddr,
-        uint256[] memory _levelScoresDef,
-        uint256[] memory _leverageThresholds
-    ) external isSavior {
+    function initialize(address _shorterBone, address _WrappedEtherAddr, uint256[] memory _levelScoresDef, uint256[] memory _leverageThresholds) external isSavior {
         require(!_initialized, "PoolGuardian: Already initialized");
         require(_levelScoresDef.length == _leverageThresholds.length, "PoolGuardian: Invalid leverage params");
         shorterBone = IShorterBone(_shorterBone);
@@ -38,22 +35,16 @@ contract PoolGuardianImpl is ChainSchema, TheiaStorage, IPoolGuardian {
         emit PoolGuardianInitiated();
     }
 
-    /// @notice Add a new pool. DO NOT add the pool with identical meters
-    function addPool(
-        address stakedToken,
-        address stableToken,
-        address creator,
-        uint256 leverage,
-        uint256 durationDays,
-        uint256 poolId
-    ) external override onlyCommittee {
-        require(_checkLeverageValid(stakedToken, leverage), "PoolGuardian: Invalid leverage");
-        address strToken = IShorterFactory(shorterBone.getShorterFactory()).createStrPool(poolId);
+     /// @notice Add a new pool. DO NOT add the pool with identical meters
+    function addPool(IPool.CreatePoolParams calldata createPoolParams) external override chainReady onlyCommittee {
+        require(_checkLeverageValid(createPoolParams.stakedToken, createPoolParams.leverage), "PoolGuardian: Invalid leverage");
+        address strToken = IShorterFactory(shorterBone.getShorterFactory()).createStrPool(createPoolParams.poolId);
         address poolRewardModel = shorterBone.getModule(AllyLibrary.POOL_REWARD);
-        IPool(strToken).initialize(creator, stakedToken, stableToken, wrapRouter, shorterBone.getTradingHub(), poolRewardModel, poolId, leverage, durationDays, blocksPerDay(), WrappedEtherAddr);
-        poolInfoMap[poolId] = PoolInfo({stakedToken: stakedToken, stableToken: stableToken, strToken: strToken, stateFlag: PoolStatus.GENESIS});
-        poolIds.push(poolId);
-        createPoolIds[creator].push(poolId);
+        
+        IPool(strToken).initialize(wrapRouter, shorterBone.getTradingHub(), poolRewardModel, blocksPerDay(), WrappedEtherAddr, createPoolParams);
+        poolInfoMap[createPoolParams.poolId] = PoolInfo({stakedToken: createPoolParams.stakedToken, stableToken: createPoolParams.stableToken, strToken: strToken, stateFlag: PoolStatus.GENESIS});
+        poolIds.push(createPoolParams.poolId);
+        createPoolIds[createPoolParams.creator].push(createPoolParams.poolId);
     }
 
     function listPool(uint256 poolId) external override onlyCommittee {
@@ -74,16 +65,7 @@ contract PoolGuardianImpl is ChainSchema, TheiaStorage, IPoolGuardian {
         _poolIds = createPoolIds[creator];
     }
 
-    function getPoolInfo(uint256 poolId)
-        external
-        view
-        override
-        returns (
-            address stakedToken,
-            address strToken,
-            PoolStatus stateFlag
-        )
-    {
+    function getPoolInfo(uint256 poolId) external view override returns (address stakedToken, address strToken, PoolStatus stateFlag) {
         PoolInfo storage pool = poolInfoMap[poolId];
         return (pool.stakedToken, pool.strToken, pool.stateFlag);
     }
@@ -139,6 +121,7 @@ contract PoolGuardianImpl is ChainSchema, TheiaStorage, IPoolGuardian {
     }
 
     function getPoolInvokers(bytes4 _sig) external view override returns (address) {
+        require(poolInvokers[_sig] != address(0), "PoolGuardian: poolInvoker is zaro address");
         return poolInvokers[_sig];
     }
 }

@@ -100,4 +100,6 @@ contract CommitteStorage is TitanCoreStorage {
     mapping(address => EnumerableSet.UintSet) internal forVoteProposals;
 
     mapping(address => EnumerableSet.UintSet) internal againstVoteProposals;
+
+    mapping(address => bool) public stableTokenWhitelist;
 }

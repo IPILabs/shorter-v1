@@ -7,10 +7,6 @@ require('@nomiclabs/hardhat-waffle');
 require('hardhat-contract-sizer');
 require('dotenv').config();
 
-const { PRIVATE_KEY } = process.env;
-
-const ACCOUNTS_PK = [`0x${PRIVATE_KEY}`];
-
 const ACCOUNTS_HD = {
 	mnemonic: 'test test test test test test test test test test test junk',
 };
@@ -45,10 +41,9 @@ module.exports = {
 			accounts: ACCOUNTS_HD,
 			chainId: 1,
 		},
-		goerli: {
-			url: `https://goerli.infura.io/v3/${process.env.INFURA_API_KEY}`,
-			accounts: ACCOUNTS_HD,
-			chainId: 5,
+		bsc: {
+			url: process.env.BSC_MAINNET_RPC,
+			chainId: 56,
 		},
 	},
 	paths: {

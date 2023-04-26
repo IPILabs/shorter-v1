@@ -93,6 +93,7 @@ contract WrappedTokenImpl is Ownable, Pausable, Whitelistable, WrappedTokenStora
     function _burn(address user, uint256 amount) internal {
         require(balanceOf[user] >= amount, "WrappedToken: Amount too large");
         balanceOf[user] = balanceOf[user].sub(amount);
+        emit Transfer(user, address(0), amount);
     }
 
     function setMinter(address newMinter, bool flag) external onlyOwner {

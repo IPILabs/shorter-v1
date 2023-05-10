@@ -63,7 +63,7 @@ contract GovRewardModelImpl is ChainSchema, GovRewardModelStorage, IGovRewardMod
         ApyPoint = newApyPoint;
     }
 
-    function getBlockePerYear() internal view returns (uint256 _blockSpan) {
+    function getBlockePerYear() internal view chainReady returns (uint256 _blockSpan) {
         _blockSpan = uint256(31536000).div(secondsPerBlock());
     }
 }

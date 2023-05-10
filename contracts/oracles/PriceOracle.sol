@@ -12,7 +12,7 @@ import "../criteria/Affinity.sol";
 import "../util/BoringMath.sol";
 import "./AggregatorV3Interface.sol";
 
-contract PriceOracleV2 is IPriceOracle, Affinity {
+contract PriceOracle is IPriceOracle, Affinity {
     using BoringMath for uint256;
 
     struct UniV3RouterInfo {
@@ -42,6 +42,10 @@ contract PriceOracleV2 is IPriceOracle, Affinity {
         uint256 quoteTokenPrice = getTokenPrice(quoteToken);
         require(baseTokenPrice > 0 && quoteTokenPrice > 0, "PriceOracle: Price precision is less than 18");
         tokenPrice = baseTokenPrice.mul(1e18).div(quoteTokenPrice);
+    }
+
+    function getTokenUniv3RouterInfo(address tokenAddr) external view returns (UniV3RouterInfo memory) {
+        return tokenUniv3RouterInfoMap[tokenAddr];
     }
 
     function setPriceOracleMode(address[] calldata tokenAddrs, PriceOracleMode mode) external isSavior {

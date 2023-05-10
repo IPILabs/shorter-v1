@@ -29,19 +29,12 @@ contract VoteRewardModelImpl is ChainSchema, VoteRewardModelStorage, IVoteReward
     }
 
     function harvest(address user) external override whenNotPaused returns (uint256 rewards) {
-        bool isAccount = user == msg.sender;
-        if (!isAccount) {
-            require(msg.sender == farming, "VoteReward: Caller is not Farming");
-        }
+        require(msg.sender == farming, "VoteReward: Caller is not Farming");
 
         uint256[] memory _againstProposals = _getAgainstProposals(user);
         for (uint256 i = 0; i < _againstProposals.length; i++) {
             rewards = rewards.add(_pendingVoteRewardDetail(user, _againstProposals[i]));
             isUserWithdraw[_againstProposals[i]][user] = true;
-        }
-
-        if (isAccount && rewards > 0) {
-            shorterBone.mintByAlly(AllyLibrary.VOTE_REWARD, user, rewards);
         }
     }
 
@@ -65,11 +58,12 @@ contract VoteRewardModelImpl is ChainSchema, VoteRewardModelStorage, IVoteReward
         }
     }
 
-    function initialize(
-        address _shorterBone,
-        address _farming,
-        address _committee
-    ) external isSavior {
+    function setFarming(address newFarming) external isSavior {
+        require(newFarming != address(0), "PoolReward: newFarming is zero address");
+        farming = newFarming;
+    }
+
+    function initialize(address _shorterBone, address _farming, address _committee) external isSavior {
         require(!_initialized, "VoteReward: Already initialized");
         shorterBone = IShorterBone(_shorterBone);
         farming = _farming;
@@ -77,7 +71,7 @@ contract VoteRewardModelImpl is ChainSchema, VoteRewardModelStorage, IVoteReward
         _initialized = true;
     }
 
-    function setIpistrPerProposal(uint256 _amount) external onlyCommittee {
+    function setIpistrPerProposal(uint256 _amount) external isSavior {
         ipistrPerProposal = _amount;
     }
 }

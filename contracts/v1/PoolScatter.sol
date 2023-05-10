@@ -6,6 +6,7 @@ import {SafeERC20 as SafeToken} from "@openzeppelin/contracts/token/ERC20/SafeER
 import "../libraries/AllyLibrary.sol";
 import "../interfaces/IWETH.sol";
 import "../../contracts/oracles/IPriceOracle.sol";
+import "../interfaces/governance/ICommittee.sol";
 import "../interfaces/v1/model/IInterestRateModel.sol";
 import "../interfaces/IDexCenter.sol";
 import "../criteria/ChainSchema.sol";
@@ -21,7 +22,7 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
 
     uint256 public maxCapacity;
     mapping(address => uint256) public positionOpenPriceMap;
-    uint256 public feeProtocol;
+    uint256 public poolCreationFee;
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
@@ -37,6 +38,12 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
 
     modifier onlyAuction() {
         require(shorterBone.checkCaller(msg.sender, AllyLibrary.AUCTION_HALL) || shorterBone.checkCaller(msg.sender, AllyLibrary.VAULT_BUTLER), "PoolScatter: Caller is neither AuctionHall nor VaultButler");
+        _;
+    }
+
+    modifier onlyRuler() {
+        ICommittee committee = ICommittee(shorterBone.getModule(AllyLibrary.COMMITTEE));
+        require(committee.isRuler(tx.origin), "PoolScatter: Caller is not ruler");
         _;
     }
 
@@ -207,6 +214,11 @@ contract PoolScatter is ChainSchema, PoolStorage, ERC20 {
         uint256 borrowAmount = positionOpenPriceMap[position].mul(positionInfo.totalSize).div(10 ** (uint256(18).add(stakedTokenDecimals).sub(stableTokenDecimals)));
         uint256 fundingFeePerBlock = IInterestRateModel(shorterBone.getInterestRateModel()).getBorrowRate(id, borrowAmount);
         totalFee_ = fundingFeePerBlock.mul(blockSpan).div(1e6);
+    }
+
+    function queryBorrowInfo() public view returns (uint256 debtAmount, uint256 unsettledCash) {
+        debtAmount = totalBorrowAmount;
+        unsettledCash = stableTokenAmountLeftover;
     }
 
     function stableTillOut(address bidder, uint256 amount) external {

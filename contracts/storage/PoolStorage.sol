@@ -78,4 +78,8 @@ contract PoolStorage is TitanCoreStorage {
     event Borrow(address indexed user, uint256 indexed poolId, uint256 amount);
     /// @notice Emitted when user repay fund to a pool
     event Repay(address indexed user, uint256 indexed poolId, uint256 amount);
+    /// @notice Emitted when user increase margin
+    event IncreaseMargin(address indexed trader, address indexed position, uint256 amount);
+    /// @notice Emitted when creator update protocol fee
+    event UpdatePoolCreationFee(uint256 _poolCreationFee);
 }

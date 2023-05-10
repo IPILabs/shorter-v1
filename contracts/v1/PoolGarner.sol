@@ -14,12 +14,11 @@ import "../tokens/ERC20.sol";
 contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
     using AllyLibrary for IShorterBone;
 
-    /// @notice Emitted when user increase margin
-    event IncreaseMargin(address indexed trader, address indexed position, uint256 amount);
-
     uint256 public maxCapacity;
     mapping(address => uint256) public positionOpenPriceMap;
-    uint256 public feeProtocol;
+    uint256 public poolCreationFee;
+
+    uint256 public constant MAX_POOL_CREATION_FEE = 500000;
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
@@ -72,6 +71,14 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         stateFlag = newStateFlag;
     }
 
+    function setPoolCreationFee(uint256 _poolCreationFee) external {
+        require(creator == msg.sender, "PoolGarner: Caller is not creator");
+        require(_poolCreationFee <= MAX_POOL_CREATION_FEE, "PoolGarner: Invalid poolCreationFee");
+
+        poolCreationFee = _poolCreationFee;
+        emit UpdatePoolCreationFee(_poolCreationFee);
+    }
+
     function transfer(address to, uint256 value) external override returns (bool) {
         _transferWithHarvest(_msgSender(), to, value);
         return true;
@@ -106,7 +113,7 @@ contract PoolGarner is ChainSchema, PoolStorage, ERC20 {
         _blocksPerDay = __blocksPerDay;
         WrappedEtherAddr = _WrappedEtherAddr;
         maxCapacity = _createPoolParams.maxCapacity;
-        feeProtocol = _createPoolParams.feeProtocol;
+        poolCreationFee = _createPoolParams.poolCreationFee;
         stakedToken.approve(address(shorterBone), uint256(0) - 1);
         stakedToken.approve(address(wrapRouter), uint256(0) - 1);
         wrappedToken.approve(address(shorterBone), uint256(0) - 1);

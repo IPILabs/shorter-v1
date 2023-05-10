@@ -5,7 +5,6 @@ pragma experimental ABIEncoderV2;
 import "./v1/IPoolGuardian.sol";
 import "./v1/ITradingHub.sol";
 
-
 interface IPool {
     struct CreatePoolParams {
         address stakedToken;
@@ -15,7 +14,7 @@ interface IPool {
         uint256 durationDays;
         uint256 poolId;
         uint256 maxCapacity;
-        uint256 feeProtocol;
+        uint256 poolCreationFee;
     }
 
     function initialize(address _wrapRouter, address _tradingHubAddr, address _poolRewardModelAddr, uint256 __blocksPerDay, address _WrappedEtherAddr, CreatePoolParams calldata _createPoolParams) external;
@@ -60,4 +59,6 @@ interface IPool {
     function estimatePositionState(uint256 currentPrice, address position) external view returns (uint256);
 
     function increaseMargin(address position, address trader, uint256 amount) external;
+
+    function poolCreationFee() external view returns (uint256);
 }

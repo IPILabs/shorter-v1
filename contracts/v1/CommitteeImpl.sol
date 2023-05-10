@@ -15,7 +15,7 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
     using EnumerableSet for EnumerableSet.UintSet;
     using AllyLibrary for IShorterBone;
 
-    uint256 public constant MAX_FEE_PROTOCOL = 500000;
+    uint256 public constant MAX_POOL_CREATION_FEE = 500000;
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
@@ -61,11 +61,11 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
     }
 
     /// @notice Specified for the proposal of pool type
-    function createPoolProposal(address _stakedTokenAddr, address _stableTokenAddr, uint256 _leverage, uint256 _durationDays, uint256 _maxCapacity, uint256 _feeProtocol) external chainReady whenNotPaused {
+    function createPoolProposal(address _stakedTokenAddr, address _stableTokenAddr, uint256 _leverage, uint256 _durationDays, uint256 _maxCapacity, uint256 _poolCreationFee) external chainReady whenNotPaused {
         require(stableTokenWhitelist[_stableTokenAddr], "Committee: stableToken is not in the whitelist");
         address WrappedEtherAddr = IPoolGuardian(shorterBone.getPoolGuardian()).WrappedEtherAddr();
         require(_stakedTokenAddr != WrappedEtherAddr, "Committee: Invalid stakedToken");
-        require(_feeProtocol <= MAX_FEE_PROTOCOL, "Committee: Invalid feeProtocol");
+        require(_poolCreationFee <= MAX_POOL_CREATION_FEE, "Committee: Invalid poolCreationFee");
         if (address(_stakedTokenAddr) == address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE)) {
             _stakedTokenAddr = WrappedEtherAddr;
         }
@@ -76,7 +76,7 @@ contract CommitteeImpl is ChainSchema, CommitteStorage, ICommittee {
         require(proposalGallery[proposalCount].startBlock == 0, "Committee: Existing proposal found");
         proposalIds.push(proposalCount);
         shorterBone.revenue(address(ipistrToken), msg.sender, proposalFee, IShorterBone.IncomeType.PROPOSAL_FEE);
-        IPoolGuardian(shorterBone.getPoolGuardian()).addPool(IPool.CreatePoolParams({stakedToken: _stakedTokenAddr, stableToken: stableToken, creator: msg.sender, leverage: _leverage, durationDays: _durationDays, poolId: proposalCount, maxCapacity: _maxCapacity, feeProtocol: _feeProtocol}));
+        IPoolGuardian(shorterBone.getPoolGuardian()).addPool(IPool.CreatePoolParams({stakedToken: _stakedTokenAddr, stableToken: stableToken, creator: msg.sender, leverage: _leverage, durationDays: _durationDays, poolId: proposalCount, maxCapacity: _maxCapacity, poolCreationFee: _poolCreationFee}));
         proposalGallery[proposalCount] = Proposal({id: uint32(proposalCount), proposer: msg.sender, catagory: 1, startBlock: block.number.to64(), endBlock: block.number.add(blocksPerDay().mul(maxVotingDays)).to64(), forShares: 0, againstShares: 0, status: ProposalStatus.Active, displayable: true});
         poolMetersMap[proposalCount] = PoolMeters({tokenContract: _stakedTokenAddr, leverage: _leverage.to32(), durationDays: _durationDays.to32()});
 

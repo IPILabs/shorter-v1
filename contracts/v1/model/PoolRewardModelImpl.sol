@@ -13,17 +13,8 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
-    function harvest(
-        address user,
-        uint256[] memory stakedPools,
-        uint256[] memory createPools,
-        uint256[] memory votePools
-    ) external override whenNotPaused returns (uint256 rewards) {
-        bool isAccount = user == msg.sender;
-        if (!isAccount) {
+    function harvest(address user, uint256[] memory stakedPools, uint256[] memory createPools, uint256[] memory votePools) external override whenNotPaused returns (uint256 rewards) {
             require(msg.sender == farming, "PoolReward: Caller is not Farming");
-        }
-
         for (uint256 i = 0; i < stakedPools.length; i++) {
             rewards = rewards.add(pendingPoolReward(user, stakedPools[i]));
             _updatePool(stakedPools[i]);
@@ -47,17 +38,9 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
             _updatePool(votePools[i]);
             _updateVoteRewardDetail(user, votePools[i], _voteRewards0, _voteRewards1);
         }
-
-        if (isAccount) {
-            shorterBone.mintByAlly(AllyLibrary.POOL_REWARD, user, rewards);
-        }
     }
 
-    function harvestByStrToken(
-        uint256 poolId,
-        address user,
-        uint256 amount
-    ) external override {
+    function harvestByStrToken(uint256 poolId, address user, uint256 amount) external override {
         address strPool = getStrPool(poolId);
         require(msg.sender == strPool, "PoolReward: Caller is not the Pool");
         uint256 _rewards = pendingPoolReward(user, poolId);
@@ -70,19 +53,7 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
         }
     }
 
-    function pendingReward(address user)
-        public
-        view
-        override
-        returns (
-            uint256 stakedRewards,
-            uint256 creatorRewards,
-            uint256 voteRewards,
-            uint256[] memory stakedPools,
-            uint256[] memory createPools,
-            uint256[] memory votePools
-        )
-    {
+    function pendingReward(address user) public view override returns (uint256 stakedRewards, uint256 creatorRewards, uint256 voteRewards, uint256[] memory stakedPools, uint256[] memory createPools, uint256[] memory votePools) {
         uint256[] memory poodIds = _getPools();
         (stakedRewards, stakedPools) = _pendingPoolReward(user, poodIds);
         (creatorRewards, createPools) = _pendingCreateReward(user, poodIds);
@@ -158,7 +129,8 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
 
         (, , , , , , , uint256 endBlock, , , uint256 stableTokenDecimals, ) = IPool(strPool).getMetaInfo();
 
-        uint256 stablePoolReward = (IPool(strPool).totalTradingFee().sub(totalTradingFees[poolId])).mul(10**(uint256(18).sub(stableTokenDecimals)));
+        {
+            uint256 stablePoolReward = (IPool(strPool).totalTradingFee().sub(totalTradingFees[poolId])).mul(10 ** (uint256(18).sub(stableTokenDecimals)));
         uint256 accIpistrPerShare = pool.accIPISTRPerShare.add(_totalPendingReward(poolId, endBlock, strPool).div(_poolStakedAmount));
         uint256 accStablePerShare = pool.accStablePerShare.add(stablePoolReward.mul(IPISTR_DECIMAL_SCALER).div(_poolStakedAmount));
 
@@ -168,20 +140,14 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
         uint256 pendingTradingRewards = _userStakedAmount.mul(accStablePerShare).div(IPISTR_DECIMAL_SCALER).sub(rewardDebt.poolStableRewardDebt);
         uint256 currentPrice = priceOracle.getLatestMixinPrice(ipistrToken);
         pendingTradingRewards = pendingTradingRewards.mul(1e18).mul(2).div(currentPrice).div(5);
-
         rewards = _userStakedAmount.mul(accIpistrPerShare).div(IPISTR_DECIMAL_SCALER).sub(rewardDebt.poolIpistrRewardDebt);
         rewards = rewards.add(pendingTradingRewards);
     }
 
-    function pendingCreatorRewards(address user, uint256 poolId)
-        public
-        view
-        returns (
-            uint256 rewards,
-            uint256 rewards0,
-            uint256 rewards1
-        )
-    {
+        rewards = rewards.mul(uint256(1e6).sub(IPool(strPool).poolCreationFee())).div(1e6);
+    }
+
+    function pendingCreatorRewards(address user, uint256 poolId) public view returns (uint256 rewards, uint256 rewards0, uint256 rewards1) {
         address strPool = getStrPool(poolId);
         (address creator, , , , , , , uint256 endBlock, , , uint256 stableTokenDecimals, IPoolGuardian.PoolStatus stateFlag) = IPool(strPool).getMetaInfo();
         if (user != creator || stateFlag == IPoolGuardian.PoolStatus.GENESIS) {
@@ -189,24 +155,18 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
         }
 
         uint256 ipistrPoolReward = (_totalPendingReward(poolId, endBlock, strPool).div(IPISTR_DECIMAL_SCALER)).add(totalIpistrAmount[poolId]);
-        uint256 stablePoolReward = IPool(strPool).totalTradingFee().mul(10**(uint256(18).sub(stableTokenDecimals)));
+        uint256 stablePoolReward = IPool(strPool).totalTradingFee().mul(10 ** (uint256(18).sub(stableTokenDecimals)));
 
         RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
-        rewards0 = ipistrPoolReward.mul(3).div(100) > rewardDebt.creatorIpistrRewardDebt ? (ipistrPoolReward.mul(3).div(100)).sub(rewardDebt.creatorIpistrRewardDebt) : 0;
-        rewards1 = stablePoolReward.mul(3).div(100) > rewardDebt.creatorStableRewardDebt ? (stablePoolReward.mul(3).div(100)).sub(rewardDebt.creatorStableRewardDebt) : 0;
+
+        uint256 poolCreationFee = IPool(strPool).poolCreationFee();
+        rewards0 = ipistrPoolReward.mul(poolCreationFee).div(1e6) > rewardDebt.creatorIpistrRewardDebt ? (ipistrPoolReward.mul(poolCreationFee).div(1e6)).sub(rewardDebt.creatorIpistrRewardDebt) : 0;
+        rewards1 = stablePoolReward.mul(poolCreationFee).div(1e6) > rewardDebt.creatorStableRewardDebt ? (stablePoolReward.mul(poolCreationFee).div(1e6)).sub(rewardDebt.creatorStableRewardDebt) : 0;
         uint256 currentPrice = priceOracle.getLatestMixinPrice(ipistrToken);
         rewards = rewards0.add(rewards1.mul(1e18).div(currentPrice));
     }
 
-    function pendingVoteRewards(address user, uint256 poolId)
-        public
-        view
-        returns (
-            uint256 rewards,
-            uint256 rewards0,
-            uint256 rewards1
-        )
-    {
+    function pendingVoteRewards(address user, uint256 poolId) public view returns (uint256 rewards, uint256 rewards0, uint256 rewards1) {
         (uint256 voteShare, uint256 totalShare) = getForShares(user, poolId);
 
         if (voteShare == 0) {
@@ -217,7 +177,7 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
         (, , , , , , , uint256 endBlock, , , uint256 stableTokenDecimals, ) = IPool(strPool).getMetaInfo();
 
         uint256 ipistrPoolReward = (_totalPendingReward(poolId, endBlock, strPool).div(IPISTR_DECIMAL_SCALER)).add(totalIpistrAmount[poolId]);
-        uint256 stablePoolReward = IPool(strPool).totalTradingFee().mul(10**(uint256(18).sub(stableTokenDecimals)));
+        uint256 stablePoolReward = IPool(strPool).totalTradingFee().mul(10 ** (uint256(18).sub(stableTokenDecimals)));
 
         RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
         rewards0 = ipistrPoolReward.mul(voteShare).div(totalShare).div(200) > rewardDebt.voterIpistrRewardDebt ? (ipistrPoolReward.mul(voteShare).div(totalShare).div(200)).sub(rewardDebt.voterIpistrRewardDebt) : 0;
@@ -226,11 +186,7 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
         rewards = rewards0.add(rewards1.mul(1e18).div(currentPrice));
     }
 
-    function _totalPendingReward(
-        uint256 poolId,
-        uint256 endBlock,
-        address strPool
-    ) internal view returns (uint256 _rewards) {
+    function _totalPendingReward(uint256 poolId, uint256 endBlock, address strPool) internal view returns (uint256 _rewards) {
         PoolInfo storage pool = poolInfoMap[poolId];
         uint256 blockSpan = block.number.sub(uint256(pool.lastRewardBlock));
         uint256 poolStakedAmount = ISRC20(strPool).totalSupply();
@@ -269,33 +225,19 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
         pool.lastRewardBlock = block.number.to64();
     }
 
-    function _updateCreateRewardDetail(
-        address user,
-        uint256 poolId,
-        uint256 rewards0,
-        uint256 rewards1
-    ) internal {
+    function _updateCreateRewardDetail(address user, uint256 poolId, uint256 rewards0, uint256 rewards1) internal {
         RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
         rewardDebt.creatorIpistrRewardDebt = rewardDebt.creatorIpistrRewardDebt.add(rewards0);
         rewardDebt.creatorStableRewardDebt = rewardDebt.creatorStableRewardDebt.add(rewards1);
     }
 
-    function _updateVoteRewardDetail(
-        address user,
-        uint256 poolId,
-        uint256 rewards0,
-        uint256 rewards1
-    ) internal {
+    function _updateVoteRewardDetail(address user, uint256 poolId, uint256 rewards0, uint256 rewards1) internal {
         RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
         rewardDebt.voterIpistrRewardDebt = rewardDebt.voterIpistrRewardDebt.add(rewards0);
         rewardDebt.voterStableRewardDebt = rewardDebt.voterStableRewardDebt.add(rewards1);
     }
 
-    function _updatePoolRewardDetail(
-        address user,
-        uint256 poolId,
-        uint256 amount
-    ) internal {
+    function _updatePoolRewardDetail(address user, uint256 poolId, uint256 amount) internal {
         PoolInfo storage pool = poolInfoMap[poolId];
         RewardDebtInfo storage rewardDebt = rewardDebtInfoMap[poolId][user];
         rewardDebt.poolIpistrRewardDebt = amount.mul(pool.accIPISTRPerShare).div(IPISTR_DECIMAL_SCALER);
@@ -342,14 +284,17 @@ contract PoolRewardModelImpl is ChainSchema, PoolRewardModelStorage, IPoolReward
         _befPoolWeight = uint256(poolInfoMap[_poolId].allocPoint).mul(poolInfoMap[_poolId].multiplier);
     }
 
-    function initialize(
-        address _shorterBone,
-        address _poolGuardian,
-        address _priceOracle,
-        address _ipistrToken,
-        address _committee,
-        address _farming
-    ) external isSavior {
+    function setPriceOracle(address newPriceOracle) external isSavior {
+        require(newPriceOracle != address(0), "PoolReward: newPriceOracle is zero address");
+        priceOracle = IPriceOracle(newPriceOracle);
+    }
+
+    function setFarming(address newFarming) external isSavior {
+        require(newFarming != address(0), "PoolReward: newFarming is zero address");
+        farming = newFarming;
+    }
+
+    function initialize(address _shorterBone, address _poolGuardian, address _priceOracle, address _ipistrToken, address _committee, address _farming) external isSavior {
         require(!_initialized, "PoolReward: Already initialized");
         shorterBone = IShorterBone(_shorterBone);
         poolGuardian = IPoolGuardian(_poolGuardian);

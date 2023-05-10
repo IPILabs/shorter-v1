@@ -13,13 +13,7 @@ contract TradingRewardModelImpl is ChainSchema, TradingRewardModelStorage, ITrad
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
-    function initialize(
-        address _shorterBone,
-        address _poolGuardian,
-        address _priceOracle,
-        address _ipistrToken,
-        address _farming
-    ) external isSavior {
+    function initialize(address _shorterBone, address _poolGuardian, address _priceOracle, address _ipistrToken, address _farming) external isSavior {
         require(!_initialized, "TradingReward: Already initialized");
         shorterBone = IShorterBone(_shorterBone);
         poolGuardian = IPoolGuardian(_poolGuardian);
@@ -31,10 +25,7 @@ contract TradingRewardModelImpl is ChainSchema, TradingRewardModelStorage, ITrad
 
     function harvest(address trader, uint256[] memory poolIds) external override returns (uint256 rewards) {
         require(poolIds.length > 0, "TradingReward: Invalid pool size");
-        bool isTrader = trader == msg.sender;
-        if (!isTrader) {
-            require(msg.sender == farming, "TradingReward: Caller is not Farming");
-        }
+        require(msg.sender == farming, "TradingReward: Caller is not Farming");
 
         uint256 pendingTradingFee;
         for (uint256 i = 0; i < poolIds.length; i++) {
@@ -45,10 +36,16 @@ contract TradingRewardModelImpl is ChainSchema, TradingRewardModelStorage, ITrad
         }
         uint256 currentPrice = priceOracle.getLatestMixinPrice(ipistrToken);
         rewards = pendingTradingFee.mul(1e18).mul(2).div(currentPrice).div(5);
+    }
 
-        if (isTrader) {
-            shorterBone.mintByAlly(AllyLibrary.TRADING_REWARD, trader, rewards);
-        }
+    function setPriceOracle(address newPriceOracle) external isSavior {
+        require(newPriceOracle != address(0), "TradingHub: NewPriceOracle is zero address");
+        priceOracle = IPriceOracle(newPriceOracle);
+    }
+
+    function setFarming(address newFarming) external isSavior {
+        require(newFarming != address(0), "PoolReward: newFarming is zero address");
+        farming = newFarming;
     }
 
     function pendingReward(address trader) external view override returns (uint256 rewards, uint256[] memory poolIds) {
@@ -76,7 +73,7 @@ contract TradingRewardModelImpl is ChainSchema, TradingRewardModelStorage, ITrad
 
     function _getTradingFee(address trader, uint256 poolId) internal view returns (uint256 tradingFee) {
         (address strPool, uint256 stableTokenDecimals) = _getStableTokenDecimals(poolId);
-        tradingFee = IPool(strPool).tradingFeeOf(trader).mul(10**(uint256(18).sub(stableTokenDecimals)));
+        tradingFee = IPool(strPool).tradingFeeOf(trader).mul(10 ** (uint256(18).sub(stableTokenDecimals)));
         uint256 currentRoundTradingFee = IPool(strPool).currentRoundTradingFeeOf(trader);
         tradingFee = tradingFee.sub(tradingRewardDebt[poolId][trader]).sub(currentRoundTradingFee);
     }

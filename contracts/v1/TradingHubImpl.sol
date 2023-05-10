@@ -28,11 +28,6 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
 
     constructor(address _SAVIOR) public ChainSchema(_SAVIOR) {}
 
-    modifier onlySwapRouter(address _swapRouter) {
-        require(dexCenter.entitledSwapRouters(_swapRouter), "TradingHub: Invalid SwapRouter");
-        _;
-    }
-
     modifier onlyCommittee() {
         shorterBone.assertCaller(msg.sender, AllyLibrary.COMMITTEE);
         _;
@@ -124,11 +119,10 @@ contract TradingHubImpl is ChainSchema, AresStorage, ITradingHub {
         }
     }
 
-    function initialize(address _shorterBone, address _poolGuardian, address _dexCenter, address _priceOracle) external isSavior {
+    function initialize(address _shorterBone, address _poolGuardian, address _priceOracle) external isSavior {
         require(!_initialized, "TradingHub: Already initialized");
         shorterBone = IShorterBone(_shorterBone);
         poolGuardian = IPoolGuardian(_poolGuardian);
-        dexCenter = IDexCenter(_dexCenter);
         priceOracle = IPriceOracle(_priceOracle);
         _initialized = true;
     }
